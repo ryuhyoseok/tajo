@@ -127,6 +127,8 @@ public class TestLeafServer {
       
       i++;
     }
+    Log.info("reported: " + reported);
+    Log.info("submitted: " + submitted);
     assertTrue(reported.containsAll(submitted));
   }
 

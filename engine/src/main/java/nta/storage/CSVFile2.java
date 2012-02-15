@@ -32,7 +32,7 @@ import org.apache.hadoop.fs.Path;
  */
 public class CSVFile2 extends Storage {
   public static final String DELIMITER = "csvfile.delimiter";
-  public static final String DELIMITER_DEFAULT = ",";
+  public static final String DELIMITER_DEFAULT = "\\|";
   private static final Log LOG = LogFactory.getLog(CSVFile2.class);
 
   public CSVFile2(Configuration conf) {
@@ -130,7 +130,7 @@ public class CSVFile2 extends Storage {
             break;
           }
         }
-        sb.append(delimiter);
+        sb.append("|");
       }
       sb.deleteCharAt(sb.length() - 1);
       sb.append('\n');

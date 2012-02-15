@@ -18,6 +18,7 @@ public class QueryIdFactory {
   private static int nextQueryId = -1;
   private static int nextSubQueryId = -1;
   private static int nextQueryUnitId = -1;
+  private static int nextQueryStepId = -1;
   
   public static void reset() {
     Date dateNow = new Date();
@@ -49,5 +50,12 @@ public class QueryIdFactory {
     }
     queryUnitId = new QueryUnitId(subQueryId, ++nextQueryUnitId);
     return queryUnitId;
+  }
+  
+  public static String nextQueryStepId() {
+    if (nextSubQueryId == -1) {
+      newSubQueryId();
+    }
+    return subQueryId.toString() + "_" + ++nextQueryStepId;
   }
 }

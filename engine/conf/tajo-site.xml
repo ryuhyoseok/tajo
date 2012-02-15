@@ -31,6 +31,13 @@
 
 <!--
 <property>
+	<name>engine.leafserver.port</name>
+	<value>10001</value>
+</property>
+-->
+
+<!--
+<property>
   <name>zookeeper.server.addr</name>
   <value>127.0.0.1:2181</value>
 </property>

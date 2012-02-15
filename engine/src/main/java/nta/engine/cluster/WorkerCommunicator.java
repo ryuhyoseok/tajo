@@ -40,6 +40,8 @@ public class WorkerCommunicator extends ZkListener {
 
     zkClient = new ZkClient(conf);
     tracker = new LeafServerTracker(zkClient);
+    
+    Thread.sleep(3000);
 
     servers = tracker.getMembers();
 
@@ -83,6 +85,9 @@ public class WorkerCommunicator extends ZkListener {
 
   public Callback<SubQueryResponseProto> requestQueryUnit(String serverName,
       QueryUnitRequestProto requestProto) throws Exception {
+    if (!hm.containsKey(serverName)) {
+      return null;
+    }
     Callback<SubQueryResponseProto> cb;
     cb = new Callback<SubQueryResponseProto>();
     AsyncWorkerClientInterface leaf = hm.get(serverName);
