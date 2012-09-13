@@ -149,15 +149,16 @@ public class TestClusterManager {
     ClusterManager.WorkerResource wr;
     Set<String> onlineWorkers = Sets.newHashSet();
     for (int i = 0; i < 4; i++) {
+
       onlineWorkers.clear();
+
       for (List<String> workers : cm.getOnlineWorkers().values()) {
         onlineWorkers.addAll(workers);
       }
+
       for (int j = 0; j < CLUST_NUM; j++) {
         String host = cm.getNextFreeHost();
-        wr = cm.getResource(host);
-        wr.getResource();
-        cm.updateResourcePool(wr);
+        cm.allocateSlot(host);
         assertTrue(onlineWorkers.contains(host));
         onlineWorkers.remove(host);
       }

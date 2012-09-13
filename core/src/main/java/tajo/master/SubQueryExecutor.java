@@ -31,6 +31,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.event.EventHandler;
 import tajo.QueryId;
 import tajo.catalog.TCatUtil;
 import tajo.catalog.TableMeta;
@@ -46,20 +47,20 @@ import tajo.engine.cluster.QueryManager;
 import tajo.engine.cluster.WorkerCommunicator;
 import tajo.engine.exception.EmptyClusterException;
 import tajo.engine.exception.UnknownWorkerException;
-import tajo.ipc.protocolrecords.Fragment;
-import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.engine.json.GsonCreator;
 import tajo.engine.planner.PlannerUtil;
 import tajo.engine.planner.global.MasterPlan;
 import tajo.engine.planner.global.QueryUnit;
 import tajo.engine.planner.global.QueryUnitAttempt;
-import tajo.master.SubQuery.PARTITION_TYPE;
 import tajo.engine.planner.logical.ExprType;
 import tajo.engine.planner.logical.GroupbyNode;
 import tajo.engine.planner.logical.IndexWriteNode;
 import tajo.engine.planner.logical.ScanNode;
 import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.index.IndexUtil;
+import tajo.ipc.protocolrecords.Fragment;
+import tajo.ipc.protocolrecords.QueryUnitRequest;
+import tajo.master.SubQuery.PARTITION_TYPE;
 import tajo.storage.StorageManager;
 
 import java.io.IOException;
@@ -70,9 +71,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 
-/**
- * @author jihoon
- */
 public class SubQueryExecutor extends Thread {
   private enum Status {
     INPROGRESS, FINISHED, ABORTED,
@@ -94,15 +92,21 @@ public class SubQueryExecutor extends Thread {
   private final QueryManager qm;
   private final QueryId id;
   private MasterPlan plan;
+  private final EventHandler eventHandler;
 
   private QueryScheduler scheduler;
   private QueryUnitSubmitter submitter;
 
   private Sleeper sleeper;
 
-  public SubQueryExecutor(Configuration conf, WorkerCommunicator wc,
-                          GlobalPlanner planner, ClusterManager cm, QueryManager qm,
-                          StorageManager sm, MasterPlan masterPlan) {
+  public SubQueryExecutor(final Configuration conf,
+                          final WorkerCommunicator wc,
+                          final GlobalPlanner planner,
+                          final ClusterManager cm,
+                          final QueryManager qm,
+                          final StorageManager sm,
+                          final MasterPlan masterPlan,
+                          final EventHandler eventHandler) {
     this.conf = conf;
     this.wc = wc;
     this.planner = planner;
@@ -110,6 +114,7 @@ public class SubQueryExecutor extends Thread {
     this.cm = cm;
     this.qm = qm;
     this.sm = sm;
+    this.eventHandler = eventHandler;
     this.inprogressQueue = new LinkedBlockingQueue<SubQuery>();
     this.pendingQueue = new LinkedBlockingQueue<QueryUnit>();
     this.scheduler = new QueryScheduler();
@@ -151,22 +156,6 @@ public class SubQueryExecutor extends Thread {
 
   public Status getStatus() {
     return this.status;
-  }
-
-  public Status getSchedulerStatus() {
-    return scheduler.getStatus();
-  }
-
-  public boolean isSchedulerFinished() {
-    return scheduler.isFinished();
-  }
-
-  public Status getSubmitterStatus() {
-    return submitter.getStatus();
-  }
-
-  public QueryUnitSubmitter getSubmitter() {
-    return this.submitter;
   }
 
   public void shutdown(final String msg) {
@@ -855,9 +844,7 @@ public class SubQueryExecutor extends Thread {
             toBeRemoved.add(attempt);
             attempt.getQueryUnit().setStatus(QueryStatus.QUERY_FINISHED);
             success++;
-            wr = cm.getResource(attempt.getHost());
-            wr.returnResource();
-            cm.updateResourcePool(wr);
+            cm.freeSlot(attempt.getHost());
             break;
           case QUERY_ABORTED:
             toBeRemoved.add(attempt);
@@ -868,9 +855,7 @@ public class SubQueryExecutor extends Thread {
             toBeRemoved.add(attempt);
             sendCommand(attempt, CommandType.STOP);
             killed++;
-            wr = cm.getResource(attempt.getHost());
-            wr.returnResource();
-            cm.updateResourcePool(wr);
+            cm.freeSlot(attempt.getHost());
             break;
           default:
             break;
@@ -946,9 +931,7 @@ public class SubQueryExecutor extends Thread {
         }
         if (info == null) {
           String host = cm.getNextFreeHost();
-          wr = cm.getResource(host);
-          wr.getResource();
-          cm.updateResourcePool(wr);
+          cm.allocateSlot(host);
           return host;
         }
         if (cm.getOnlineWorkers().containsKey(info.getPrimaryHost())) {
@@ -956,8 +939,7 @@ public class SubQueryExecutor extends Thread {
           for (String worker : workers) {
             wr = cm.getResource(worker);
             if (wr.hasFreeResource()) {
-              wr.getResource();
-              cm.updateResourcePool(wr);
+              cm.allocateSlot(worker);
               return worker;
             }
           }
@@ -969,17 +951,14 @@ public class SubQueryExecutor extends Thread {
             for (String worker : workers) {
               wr = cm.getResource(worker);
               if (wr.hasFreeResource()) {
-                wr.getResource();
-                cm.updateResourcePool(wr);
+                cm.allocateSlot(worker);
                 return worker;
               }
             }
           }
         }
         backup = cm.getNextFreeHost();
-        wr = cm.getResource(backup);
-        wr.getResource();
-        cm.updateResourcePool(wr);
+        cm.allocateSlot(backup);
         return backup;
       } else {
         return null;

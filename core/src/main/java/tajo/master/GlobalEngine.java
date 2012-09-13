@@ -22,8 +22,7 @@ package tajo.master;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import tajo.QueryId;
-import tajo.QueryIdFactory;
+import org.apache.hadoop.yarn.event.EventHandler;
 import tajo.catalog.CatalogService;
 import tajo.catalog.TCatUtil;
 import tajo.catalog.TableDesc;
@@ -61,15 +60,19 @@ public class GlobalEngine implements EngineService {
   private QueryManager qm;
   private ClusterManager cm;
 
-  public GlobalEngine(final TajoConf conf, CatalogService cat,
-      StorageManager sm, WorkerCommunicator wc, QueryManager qm,
-      ClusterManager cm) throws IOException {
+  private EventHandler eventHandler;
+
+  public GlobalEngine(final TajoConf conf, final CatalogService cat,
+                      final StorageManager sm, final WorkerCommunicator wc,
+                      final QueryManager qm, final ClusterManager cm,
+                      final EventHandler eventHandler) throws IOException {
     this.conf = conf;
     this.catalog = cat;
     this.wc = wc;
     this.qm = qm;
     this.sm = sm;
     this.cm = cm;
+    this.eventHandler = eventHandler;
   }
 
   private LogicalNode buildLogicalPlan(PlanningContext context) throws IOException {
@@ -144,7 +147,7 @@ public class GlobalEngine implements EngineService {
 
       query.setStatus(QueryStatus.QUERY_INPROGRESS);
       SubQueryExecutor executor = new SubQueryExecutor(conf,
-          wc, globalPlanner, cm, qm, sm, globalPlan);
+          wc, globalPlanner, cm, qm, sm, globalPlan, eventHandler);
       executor.start();
       executor.join();
 
@@ -221,5 +224,4 @@ public class GlobalEngine implements EngineService {
   public void shutdown() throws IOException {
     LOG.info(GlobalEngine.class.getName() + " is being stopped");
   }
-
 }

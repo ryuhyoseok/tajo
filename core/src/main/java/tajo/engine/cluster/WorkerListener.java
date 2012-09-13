@@ -30,6 +30,7 @@ import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.MasterWorkerProtos.StatusReportProto;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
+import tajo.engine.TCommonProtos.QueryUnitAttemptIdProto;
 import tajo.engine.planner.global.QueryUnitAttempt;
 import tajo.engine.query.StatusReportImpl;
 import tajo.ipc.MasterWorkerProtocol;
@@ -111,7 +112,7 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
   }
 
   @Override
-  public BoolProto ping(QueryUnitAttemptId taskId) {
+  public BoolProto ping(QueryUnitAttemptIdProto taskId) {
     LOG.info("Ping is Called!");
     return TRUE_PROTO;
   }

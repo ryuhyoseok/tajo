@@ -67,7 +67,7 @@ public class LocalTajoCluster {
       TajoConf c, final int index)
 			throws IOException {
 		WorkerThread rst =
-			JVMClusterUtil.createLeafServerThread(c, index);
+			JVMClusterUtil.createWorkerThread(c, index);
 		this.leafThreads.add(rst);
 		return rst;
 	}

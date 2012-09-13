@@ -25,18 +25,11 @@ import com.google.common.collect.Sets;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.BlockLocation;
-import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.yarn.service.AbstractService;
-import tajo.QueryUnitId;
 import tajo.catalog.CatalogService;
-import tajo.catalog.FragmentServInfo;
-import tajo.catalog.TableMetaImpl;
 import tajo.catalog.proto.CatalogProtos.TableDescProto;
-import tajo.conf.TajoConf;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto.Disk;
 import tajo.engine.cluster.event.WorkerEvent;
@@ -45,7 +38,6 @@ import tajo.ipc.protocolrecords.Fragment;
 import tajo.rpc.Callback;
 import tajo.rpc.RemoteException;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -53,7 +45,7 @@ import java.util.concurrent.ExecutionException;
 public class ClusterManager implements EventHandler<WorkerEvent> {
   private final Log LOG = LogFactory.getLog(ClusterManager.class);
 
-  private final TajoConf conf;
+  private final Configuration conf;
   private final WorkerTracker tracker;
   private final WorkerCommunicator wc;
   private final CatalogService catalog;
@@ -67,7 +59,7 @@ public class ClusterManager implements EventHandler<WorkerEvent> {
   private PriorityQueue<WorkerResource> sortedResources;
   private Set<String> failedWorkers;
 
-  public ClusterManager(final TajoConf conf,
+  public ClusterManager(final Configuration conf,
                         final WorkerCommunicator wc,
                         final WorkerTracker tracker,
                         final CatalogService catalog,
@@ -219,13 +211,20 @@ public class ClusterManager implements EventHandler<WorkerEvent> {
     this.failedWorkers.add(worker);
   }
 
+  public void allocateSlot(String workerName) {
+    WorkerResource wr = getResource(workerName);
+    wr.getResource();
+    updateResourcePool(wr);
+  }
+
+  public void freeSlot(String workerName) {
+    WorkerResource wr = getResource(workerName);
+    wr.returnResource();
+    updateResourcePool(wr);
+  }
+
   @Override
   public void handle(WorkerEvent workerEvent) {
-    switch (workerEvent.getType()) {
-      case FREE:
-        resourcePool.get(workerEvent.getWorkerName()).returnResource();
-        break;
-    }
   }
 
   public class WorkerInfo {

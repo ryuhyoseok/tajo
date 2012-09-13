@@ -22,12 +22,18 @@ package tajo.master;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.util.ShutdownHookManager;
+import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
+import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.CompositeService;
+import org.apache.hadoop.yarn.service.Service;
 import org.apache.zookeeper.KeeperException;
 import tajo.NConstants;
 import tajo.QueryIdFactory;
@@ -42,6 +48,7 @@ import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.ClientServiceProtos.*;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.engine.cluster.*;
+import tajo.engine.cluster.event.WorkerEventType;
 import tajo.rpc.NettyRpc;
 import tajo.rpc.NettyRpcServer;
 import tajo.rpc.RemoteException;
@@ -56,24 +63,26 @@ import tajo.zookeeper.ZkUtil;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 public class TajoMaster extends CompositeService implements ClientService {
+  /**
+   * Priority of the JobHistoryServer shutdown hook.
+   */
+  public static final int SHUTDOWN_HOOK_PRIORITY = 30;
+
   private static final Log LOG = LogFactory.getLog(TajoMaster.class);
 
-  private final TajoConf conf;
+  private TajoConf conf;
   private FileSystem defaultFS;
 
-  private volatile boolean stopped = true;
-
-  private final String clientServiceAddr;
-  private final ZkClient zkClient;
+  private String clientServiceAddr;
+  private ZkClient zkClient;
   private ZkServer zkServer = null;
 
-  private final Path basePath;
-  private final Path dataPath;
+  private Path basePath;
+  private Path dataPath;
 
   private CatalogService catalog;
   private StorageManager storeManager;
@@ -84,115 +93,127 @@ public class TajoMaster extends CompositeService implements ClientService {
   private QueryManager qm;
   private AsyncDispatcher dispatcher;
 
-  private final InetSocketAddress clientServiceBindAddr;
+  private InetSocketAddress clientServiceBindAddr;
   //private RPC.Server clientServiceServer;
   private NettyRpcServer server;
 
-  private List<EngineService> services = new ArrayList<EngineService>();
-  
   private WorkerTracker tracker;
-  
+
   //Web Server
   private StaticHttpServer webServer;
-  
-  public TajoMaster(final TajoConf conf) throws Exception {
+
+  public TajoMaster() throws Exception {
     super(TajoMaster.class.getName());
-
-    webServer = StaticHttpServer.getInstance(this ,"admin", null, 8080 , 
-        true, null, conf, null);
-    webServer.start();
-    
-    this.conf = conf;
-    QueryIdFactory.reset();
-
-    // Get the tajo base dir
-    this.basePath = new Path(conf.getVar(ConfVars.ENGINE_BASE_DIR));
-    LOG.info("Base dir is set " + basePath);
-    // Get default DFS uri from the base dir
-    this.defaultFS = basePath.getFileSystem(conf);
-    LOG.info("FileSystem (" + this.defaultFS.getUri() + ") is initialized.");
-
-    if (!defaultFS.exists(basePath)) {
-      defaultFS.mkdirs(basePath);
-      LOG.info("Tajo Base dir (" + basePath + ") is created.");
-    }
-
-    this.dataPath = new Path(conf.getVar(ConfVars.ENGINE_DATA_DIR));
-    LOG.info("Tajo data dir is set " + dataPath);
-    if (!defaultFS.exists(dataPath)) {
-      defaultFS.mkdirs(dataPath);
-      LOG.info("Data dir (" + dataPath + ") is created");
-    }
-
-    this.storeManager = new StorageManager(conf);
-
-    // The below is some mode-dependent codes
-    // If tajo is local mode
-    final boolean mode = conf.getBoolVar(ConfVars.CLUSTER_DISTRIBUTED);
-    if (!mode) {
-      LOG.info("Enabled Pseudo Distributed Mode");
-      conf.setVar(ConfVars.ZOOKEEPER_ADDRESS, "127.0.0.1:2181");
-      this.zkServer = new ZkServer(conf);
-      this.zkServer.start();
-
-
-      // TODO - When the RPC framework supports all methods of the catalog
-      // server, the below comments should be eliminated.
-      // this.catalog = new LocalCatalog(conf);
-    } else { // if tajo is distributed mode
-      LOG.info("Enabled Distributed Mode");
-      // connect to the catalog server
-      // this.catalog = new CatalogClient(conf);
-    }
-    // This is temporal solution of the above problem.
-    this.catalog = new LocalCatalog(conf);
-    this.qm = new QueryManager();
-
-    // connect the zkserver
-    this.zkClient = new ZkClient(conf);
-
-    this.wl = new WorkerListener(conf, qm, this);
-    // Setup RPC server
-    // Get the master address
-    LOG.info(TajoMaster.class.getSimpleName() + " is bind to "
-        + wl.getAddress());
-    this.conf.setVar(TajoConf.ConfVars.MASTER_ADDRESS, wl.getAddress());
-    
-    String confClientServiceAddr = conf.getVar(ConfVars.CLIENT_SERVICE_ADDRESS);
-    InetSocketAddress initIsa = NetUtils.createSocketAddr(confClientServiceAddr);
-    this.server = 
-        NettyRpc
-            .getProtoParamRpcServer(this,
-                ClientService.class, initIsa);
-    
-    //this.server = RPC.getServer(this, initIsa.getHostName(), 
-        //initIsa.getPort(), conf);
-    //this.clientServiceServer.start();
-    this.server.start();
-    this.clientServiceBindAddr = this.server.getBindAddress();
-    this.clientServiceAddr = clientServiceBindAddr.getHostName() + ":" +
-        clientServiceBindAddr.getPort();
-    LOG.info("Tajo client service master is bind to " + this.clientServiceAddr);
-    this.conf.setVar(ConfVars.CLIENT_SERVICE_ADDRESS, this.clientServiceAddr);
-    
-    Runtime.getRuntime().addShutdownHook(new Thread(new ShutdownHook()));
   }
 
-  private void initMaster() throws Exception {
-    
-    becomeMaster();
-    tracker = new WorkerTracker(zkClient);
-    tracker.start();
-    
-    this.wc = new WorkerCommunicator(zkClient, tracker);
-    this.wc.start();
-    this.cm = new ClusterManager(conf, wc, tracker, catalog, null);
-    this.wl.start();
+  @Override
+  public void init(Configuration _conf) {
+    this.conf = (TajoConf) _conf;
 
-    this.queryEngine = new GlobalEngine(conf, catalog, storeManager, wc, qm, cm);
-    this.queryEngine.init();
-    services.add(queryEngine);
-    stopped = false;
+    try {
+      webServer = StaticHttpServer.getInstance(this ,"admin", null, 8080 ,
+          true, null, conf, null);
+      webServer.start();
+
+      QueryIdFactory.reset();
+
+      // Get the tajo base dir
+      this.basePath = new Path(conf.getVar(ConfVars.ENGINE_BASE_DIR));
+      LOG.info("Base dir is set " + basePath);
+      // Get default DFS uri from the base dir
+      this.defaultFS = basePath.getFileSystem(conf);
+      LOG.info("FileSystem (" + this.defaultFS.getUri() + ") is initialized.");
+
+      if (!defaultFS.exists(basePath)) {
+        defaultFS.mkdirs(basePath);
+        LOG.info("Tajo Base dir (" + basePath + ") is created.");
+      }
+
+      this.dataPath = new Path(conf.getVar(ConfVars.ENGINE_DATA_DIR));
+      LOG.info("Tajo data dir is set " + dataPath);
+      if (!defaultFS.exists(dataPath)) {
+        defaultFS.mkdirs(dataPath);
+        LOG.info("Data dir (" + dataPath + ") is created");
+      }
+
+      this.dispatcher = new AsyncDispatcher();
+      addIfService(dispatcher);
+
+      this.storeManager = new StorageManager(conf);
+
+      // The below is some mode-dependent codes
+      // If tajo is local mode
+      final boolean mode = conf.getBoolVar(ConfVars.CLUSTER_DISTRIBUTED);
+      if (!mode) {
+        LOG.info("Enabled Pseudo Distributed Mode");
+        conf.setVar(ConfVars.ZOOKEEPER_ADDRESS, "127.0.0.1:2181");
+        this.zkServer = new ZkServer(conf);
+        this.zkServer.start();
+
+
+        // TODO - When the RPC framework supports all methods of the catalog
+        // server, the below comments should be eliminated.
+        // this.catalog = new LocalCatalog(conf);
+      } else { // if tajo is distributed mode
+        LOG.info("Enabled Distributed Mode");
+        // connect to the catalog server
+        // this.catalog = new CatalogClient(conf);
+      }
+      // This is temporal solution of the above problem.
+      this.catalog = new LocalCatalog(conf);
+      this.qm = new QueryManager();
+
+      // connect the zkserver
+      this.zkClient = new ZkClient(conf);
+
+      this.wl = new WorkerListener(conf, qm, this);
+
+      // Setup RPC server
+      // Get the master address
+      LOG.info(TajoMaster.class.getSimpleName() + " is bind to "
+          + wl.getAddress());
+      this.conf.setVar(TajoConf.ConfVars.MASTER_ADDRESS, wl.getAddress());
+
+      String confClientServiceAddr = conf.getVar(ConfVars.CLIENT_SERVICE_ADDRESS);
+      InetSocketAddress initIsa = NetUtils.createSocketAddr(confClientServiceAddr);
+      this.server =
+          NettyRpc
+              .getProtoParamRpcServer(this,
+                  ClientService.class, initIsa);
+
+      this.server.start();
+      this.clientServiceBindAddr = this.server.getBindAddress();
+      this.clientServiceAddr = clientServiceBindAddr.getHostName() + ":" +
+          clientServiceBindAddr.getPort();
+      LOG.info("Tajo client service master is bind to " + this.clientServiceAddr);
+      this.conf.setVar(ConfVars.CLIENT_SERVICE_ADDRESS, this.clientServiceAddr);
+
+      becomeMaster();
+      tracker = new WorkerTracker(zkClient);
+      tracker.start();
+
+      this.wc = new WorkerCommunicator(zkClient, tracker);
+      this.wc.start();
+      this.cm = new ClusterManager(conf, wc, tracker, catalog,
+          dispatcher.getEventHandler());
+      this.dispatcher.register(WorkerEventType.class, this.cm);
+
+      this.queryEngine = new GlobalEngine(conf,
+          catalog, storeManager, wc, qm, cm, dispatcher.getEventHandler());
+      this.queryEngine.init();
+
+      this.wl.start();
+    } catch (Exception e) {
+
+    }
+
+    super.init(conf);
+  }
+
+  protected void addIfService(Object object) {
+    if (object instanceof Service) {
+      addService((Service) object);
+    }
   }
 
   private void becomeMaster() throws IOException, KeeperException,
@@ -207,49 +228,14 @@ public class TajoMaster extends CompositeService implements ClientService {
         clientServiceAddr.getBytes());
   }
 
-  public void run() {
+  @Override
+  public void start() {
     LOG.info("TajoMaster startup");
-    try {
-      initMaster();
-
-      if (!this.stopped) {
-        while (!this.stopped) {
-          Thread.sleep(2000);
-        }
-      }
-    } catch (Throwable t) {
-      LOG.fatal("Unhandled exception. Starting shutdown.", t);
-    } finally {
-      // TODO - adds code to stop all services and clean resources
-    }
-
-    LOG.info("TajoMaster main thread exiting");
+    super.start();
   }
 
-  public String getMasterServerName() {
-    return this.wl.getAddress();
-  }
-  
-  public String getClientServiceServerName() {
-    return this.clientServiceAddr;
-  }
-
-  public InetSocketAddress getRpcServerAddr() {
-    return this.clientServiceBindAddr;
-  }
-
-  public boolean isMasterRunning() {
-    return !this.stopped;
-  }
-
-  public void shutdown() {
-    for (EngineService service : services) {
-      try {
-        service.shutdown();
-      } catch (Exception e) {
-        LOG.error(e);
-      }
-    }
+  @Override
+  public void stop() {
     if (wc != null) {
       this.wc.close();
     }
@@ -266,7 +252,29 @@ public class TajoMaster extends CompositeService implements ClientService {
       // TODO Auto-generated catch block
       e1.printStackTrace();
     }
-    this.stopped = true;
+
+    super.stop();
+    LOG.info("TajoMaster main thread exiting");
+  }
+
+  public EventHandler getEventHandler() {
+    return dispatcher.getEventHandler();
+  }
+
+  public String getMasterServerName() {
+    return this.wl.getAddress();
+  }
+
+  public String getClientServiceServerName() {
+    return this.clientServiceAddr;
+  }
+
+  public InetSocketAddress getRpcServerAddr() {
+    return this.clientServiceBindAddr;
+  }
+
+  public boolean isMasterRunning() {
+    return getServiceState() == STATE.STARTED;
   }
 
   public List<String> getOnlineServer() throws KeeperException,
@@ -274,17 +282,10 @@ public class TajoMaster extends CompositeService implements ClientService {
     return zkClient.getChildren(NConstants.ZNODE_LEAFSERVERS);
   }
 
-  private class ShutdownHook implements Runnable {
-    @Override
-    public void run() {
-      shutdown();
-    }
-  }
-
   public CatalogService getCatalog() {
     return this.catalog;
   }
-	
+
   public WorkerCommunicator getWorkerCommunicator() {
     return wc;
   }
@@ -292,33 +293,22 @@ public class TajoMaster extends CompositeService implements ClientService {
   public ClusterManager getClusterManager() {
     return cm;
   }
-  
+
   public QueryManager getQueryManager() {
     return this.qm;
   }
-  
-  public GlobalEngine getGlobalEngine() {
-    return this.queryEngine;
-  }
-  
+
   public StorageManager getStorageManager() {
     return this.storeManager;
   }
-  
+
   public WorkerTracker getTracker() {
     return tracker;
   }
-	
-	// TODO - to be improved
-	public Collection<TaskStatusProto> getProgressQueries() {
-	  return this.qm.getAllProgresses();
-	}
 
-  public static void main(String[] args) throws Exception {
-    TajoConf conf = new TajoConf();
-    TajoMaster master = new TajoMaster(conf);
-
-    master.start();
+  // TODO - to be improved
+  public Collection<TaskStatusProto> getProgressQueries() {
+    return this.qm.getAllProgresses();
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -346,7 +336,7 @@ public class TajoMaster extends CompositeService implements ClientService {
 
   @Override
   public AttachTableResponse attachTable(AttachTableRequest request)
-      throws RemoteException {    
+      throws RemoteException {
     if (catalog.existsTable(request.getName()))
       throw new AlreadyExistsTableException(request.getName());
 
@@ -378,7 +368,7 @@ public class TajoMaster extends CompositeService implements ClientService {
     TableDesc desc = new TableDescImpl(request.getName(), meta, path);
     catalog.addTable(desc);
     LOG.info("Table " + desc.getId() + " is attached (" + meta.getStat().getNumBytes() + ")");
-    
+
     return AttachTableResponse.newBuilder().
         setDesc((TableDescProto) desc.getProto()).build();
   }
@@ -405,7 +395,7 @@ public class TajoMaster extends CompositeService implements ClientService {
 
   @Override
   public CreateTableResponse createTable(CreateTableRequest request)
-      throws RemoteException {    
+      throws RemoteException {
     if (catalog.existsTable(request.getName()))
       throw new AlreadyExistsTableException(request.getName());
 
@@ -432,13 +422,13 @@ public class TajoMaster extends CompositeService implements ClientService {
     }
     catalog.addTable(desc);
     LOG.info("Table " + desc.getId() + " is created (" + meta.getStat().getNumBytes() + ")");
-    
+
     return CreateTableResponse.newBuilder().
         setDesc((TableDescProto) desc.getProto()).build();
   }
-  
+
   @Override
-  public BoolProto existTable(StringProto name) throws RemoteException {    
+  public BoolProto existTable(StringProto name) throws RemoteException {
     BoolProto.Builder res = BoolProto.newBuilder();
     return res.setValue(catalog.existsTable(name.getValue())).build();
   }
@@ -458,14 +448,14 @@ public class TajoMaster extends CompositeService implements ClientService {
     }
     LOG.info("Drop Table " + name);
   }
-  
+
   @Override
   public GetClusterInfoResponse getClusterInfo(GetClusterInfoRequest request) throws RemoteException {
     List<String> onlineServers;
     try {
       onlineServers = getOnlineServer();
       if (onlineServers == null) {
-       throw new NullPointerException(); 
+        throw new NullPointerException();
       }
     } catch (Exception e) {
       throw new RemoteException(e);
@@ -474,10 +464,10 @@ public class TajoMaster extends CompositeService implements ClientService {
     builder.addAllServerName(onlineServers);
     return builder.build();
   }
-  
+
   @Override
-  public GetTableListResponse getTableList(GetTableListRequest request) {    
-    Collection<String> tableNames = catalog.getAllTableNames(); 
+  public GetTableListResponse getTableList(GetTableListRequest request) {
+    Collection<String> tableNames = catalog.getAllTableNames();
     GetTableListResponse.Builder builder = GetTableListResponse.newBuilder();
     builder.addAllTables(tableNames);
     return builder.build();
@@ -492,5 +482,22 @@ public class TajoMaster extends CompositeService implements ClientService {
     }
 
     return (TableDescProto) catalog.getTableDesc(name).getProto();
+  }
+
+  public static void main(String[] args) throws Exception {
+    StringUtils.startupShutdownMessage(TajoMaster.class, args, LOG);
+
+    try {
+      TajoMaster master = new TajoMaster();
+      ShutdownHookManager.get().addShutdownHook(
+          new CompositeServiceShutdownHook(master),
+          SHUTDOWN_HOOK_PRIORITY);
+      TajoConf conf = new TajoConf(new YarnConfiguration());
+      master.init(conf);
+      master.start();
+    } catch (Throwable t) {
+      LOG.fatal("Error starting JobHistoryServer", t);
+      System.exit(-1);
+    }
   }
 }

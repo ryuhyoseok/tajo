@@ -37,22 +37,27 @@ public class JVMClusterUtil {
 		}
 	}
 
-	public static WorkerThread createLeafServerThread(
-		final TajoConf c, final int index) throws IOException {
-		Worker server;
+	public static WorkerThread createWorkerThread(final TajoConf c,
+                                                final int index)
+      throws IOException {
 
-		server = new Worker(c);
-
-		return new WorkerThread(server, index);
+		Worker worker;
+		worker = new Worker(c);
+		return new WorkerThread(worker, index);
 	}
 
 	public static class MasterThread extends Thread {
 		private final TajoMaster master;
 
 		public MasterThread(final TajoMaster m, final int index) {
-			super(m, "Master:" + index + ";" + m.getMasterServerName());
+			super("Master:" + index + ";" + m.getMasterServerName());
 			this.master = m;
 		}
+
+    @Override
+    public void run() {
+      master.start();
+    }
 
 		public TajoMaster getMaster() {
 			return this.master;
@@ -71,9 +76,8 @@ public class JVMClusterUtil {
 
 	public static JVMClusterUtil.MasterThread createMasterThread(
 		final TajoConf c, final int index) throws Exception {
-		TajoMaster server;
-
-		server = new TajoMaster(c);
+		TajoMaster server = new TajoMaster();
+    server.init(c);
 
 		return new JVMClusterUtil.MasterThread(server, index);
 	}
@@ -113,7 +117,7 @@ public class JVMClusterUtil {
 			}
 		}
 
-    master.master.shutdown();
+    master.master.stop();
 
 		LOG.info("Shutdown of "+
 			((master != null) ? "1" : "0") + " master and "+

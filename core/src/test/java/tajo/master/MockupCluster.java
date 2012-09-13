@@ -45,7 +45,8 @@ public class MockupCluster {
     this.numAbortWorkers = numAbortWorkers;
     this.numShutdownWorkers = numShutdownWorkers;
     this.numNormalWorkers = numWorkers - (numAbortWorkers + numShutdownWorkers);
-    this.master = new TajoMaster(conf);
+    this.master = new TajoMaster();
+    this.master.init(conf);
 
     this.workers = Lists.newArrayList();
 
@@ -107,7 +108,7 @@ public class MockupCluster {
         }
       }
     }
-    master.shutdown();
+    master.stop();
     this.util.shutdownMiniDFSCluster();
   }
 
@@ -124,12 +125,6 @@ public class MockupCluster {
       }
     }
 
-    if(master.isAlive()) {
-      try {
-        master.join();
-      } catch (InterruptedException e) {
-        // continue
-      }
-    }
+    master.stop();
   }
 }
