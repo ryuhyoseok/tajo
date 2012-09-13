@@ -66,10 +66,6 @@ public class QueryUnitAttempt extends AbstractQuery {
     this.hostName = host;
   }
 
-  /*
-    * Expire time
-    */
-
   public synchronized void setExpireTime(int expire) {
     this.expire = expire;
   }

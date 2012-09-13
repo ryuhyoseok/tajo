@@ -16,31 +16,8 @@
  *  limitations under the License.
  */
 
-package tajo.master;
+package tajo.engine.cluster.event;
 
-import tajo.engine.MasterWorkerProtos.QueryStatus;
-
-public abstract class AbstractQuery {
-
-  private InProgressStatus status;
-
-  public AbstractQuery() {
-    this.status = new InProgressStatus();
-  }
-
-  public void setProgress(float progress) {
-    this.status.setProgress(progress);
-  }
-  
-  public void setStatus(QueryStatus status) {
-    this.status.setStatus(status);
-  }
-  
-  public QueryStatus getStatus() {
-    return this.status.getStatus();
-  }
-  
-  public float getProgress() {
-    return status.getProgress();
-  }
+public enum WorkerEventType {
+  FREE
 }

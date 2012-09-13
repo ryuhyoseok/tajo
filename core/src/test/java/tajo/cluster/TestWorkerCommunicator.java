@@ -26,7 +26,7 @@ import org.junit.Test;
 import tajo.TajoTestingUtility;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto.Disk;
-import tajo.engine.cluster.LeafServerTracker;
+import tajo.engine.cluster.WorkerTracker;
 import tajo.engine.cluster.WorkerCommunicator;
 import tajo.rpc.RemoteException;
 import tajo.zookeeper.ZkClient;
@@ -41,7 +41,7 @@ public class TestWorkerCommunicator {
 
   private static TajoTestingUtility cluster;
   private static ZkClient zkClient;
-  private static LeafServerTracker tracker;
+  private static WorkerTracker tracker;
   private static WorkerCommunicator wc;
 
   @BeforeClass

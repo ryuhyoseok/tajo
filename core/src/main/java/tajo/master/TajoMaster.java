@@ -26,6 +26,8 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.yarn.event.AsyncDispatcher;
+import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.zookeeper.KeeperException;
 import tajo.NConstants;
 import tajo.QueryIdFactory;
@@ -58,7 +60,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-public class TajoMaster extends Thread implements ClientService {
+public class TajoMaster extends CompositeService implements ClientService {
   private static final Log LOG = LogFactory.getLog(TajoMaster.class);
 
   private final TajoConf conf;
@@ -80,6 +82,7 @@ public class TajoMaster extends Thread implements ClientService {
   private ClusterManager cm;
   private WorkerListener wl;
   private QueryManager qm;
+  private AsyncDispatcher dispatcher;
 
   private final InetSocketAddress clientServiceBindAddr;
   //private RPC.Server clientServiceServer;
@@ -87,12 +90,13 @@ public class TajoMaster extends Thread implements ClientService {
 
   private List<EngineService> services = new ArrayList<EngineService>();
   
-  private LeafServerTracker tracker;
+  private WorkerTracker tracker;
   
   //Web Server
   private StaticHttpServer webServer;
   
   public TajoMaster(final TajoConf conf) throws Exception {
+    super(TajoMaster.class.getName());
 
     webServer = StaticHttpServer.getInstance(this ,"admin", null, 8080 , 
         true, null, conf, null);
@@ -177,13 +181,12 @@ public class TajoMaster extends Thread implements ClientService {
   private void initMaster() throws Exception {
     
     becomeMaster();
-    tracker = new LeafServerTracker(zkClient);
+    tracker = new WorkerTracker(zkClient);
     tracker.start();
     
     this.wc = new WorkerCommunicator(zkClient, tracker);
     this.wc.start();
-    this.cm = new ClusterManager(wc, conf, tracker);
-    cm.init();
+    this.cm = new ClusterManager(conf, wc, tracker, catalog, null);
     this.wl.start();
 
     this.queryEngine = new GlobalEngine(conf, catalog, storeManager, wc, qm, cm);
@@ -302,7 +305,7 @@ public class TajoMaster extends Thread implements ClientService {
     return this.storeManager;
   }
   
-  public LeafServerTracker getTracker() {
+  public WorkerTracker getTracker() {
     return tracker;
   }
 	

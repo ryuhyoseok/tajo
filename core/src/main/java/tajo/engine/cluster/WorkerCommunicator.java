@@ -43,15 +43,15 @@ import java.net.InetSocketAddress;
 import java.util.*;
 
 public class WorkerCommunicator extends ZkListener {
-  private final Log LOG = LogFactory.getLog(LeafServerTracker.class);
+  private final Log LOG = LogFactory.getLog(WorkerTracker.class);
 
   private ZkClient zkClient;
-  private LeafServerTracker tracker;
+  private WorkerTracker tracker;
 
   private Map<String, AsyncWorkerCBProtocol> hm =
       new MapMaker().concurrencyLevel(4).makeMap();
 
-  public WorkerCommunicator(ZkClient zkClient, LeafServerTracker tracker)
+  public WorkerCommunicator(ZkClient zkClient, WorkerTracker tracker)
       throws Exception {
 
     this.zkClient = zkClient;

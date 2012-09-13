@@ -24,18 +24,22 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.service.AbstractService;
 import tajo.QueryUnitId;
-import tajo.catalog.CatalogClient;
+import tajo.catalog.CatalogService;
 import tajo.catalog.FragmentServInfo;
 import tajo.catalog.TableMetaImpl;
 import tajo.catalog.proto.CatalogProtos.TableDescProto;
 import tajo.conf.TajoConf;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto.Disk;
+import tajo.engine.cluster.event.WorkerEvent;
 import tajo.engine.exception.UnknownWorkerException;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.rpc.Callback;
@@ -46,89 +50,14 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-public class ClusterManager {
-  private final int FRAG_DIST_THRESHOLD = 3;
+public class ClusterManager implements EventHandler<WorkerEvent> {
   private final Log LOG = LogFactory.getLog(ClusterManager.class);
 
-  public class WorkerInfo {
-    public int availableProcessors;
-    public long freeMemory;
-    public long totalMemory;
-    public int taskNum;
-
-    public List<DiskInfo> disks = new ArrayList<DiskInfo>();
-  }
-
-  public class DiskInfo {
-    public long freeSpace;
-    public long totalSpace;
-  }
-
-  public class WorkerResource implements Comparable<WorkerResource> {
-    private String name;
-    private Integer freeResource;
-
-    public WorkerResource(String name, int freeResource) {
-      this.name = name;
-      this.freeResource = freeResource;
-    }
-
-    public String getName() {
-      return this.name;
-    }
-
-    public int getFreeResource() {
-      return this.freeResource;
-    }
-
-    public boolean hasFreeResource() {
-      return this.freeResource > 0;
-    }
-
-    public boolean getResource() {
-      if (hasFreeResource()) {
-        freeResource--;
-        return true;
-      } else {
-        return false;
-      }
-    }
-
-    public void returnResource() {
-      freeResource++;
-    }
-
-    @Override
-    public int compareTo(WorkerResource workerResource) {
-      return workerResource.freeResource - this.freeResource;
-    }
-
-    @Override
-    public int hashCode() {
-      return name.hashCode();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (o instanceof WorkerResource) {
-        WorkerResource wr = (WorkerResource) o;
-        if (wr.name.equals(this.name) && wr.freeResource == this.freeResource) {
-          return true;
-        }
-      }
-      return false;
-    }
-
-    @Override
-    public String toString() {
-      return name + " : " + freeResource;
-    }
-  }
-
   private final TajoConf conf;
+  private final WorkerTracker tracker;
   private final WorkerCommunicator wc;
-  private CatalogClient catalog;
-  private final LeafServerTracker tracker;
+  private final CatalogService catalog;
+  private final EventHandler eventHandler;
 
   private int clusterSize;
   private Map<String, List<String>> DNSNameToHostsMap;
@@ -138,21 +67,25 @@ public class ClusterManager {
   private PriorityQueue<WorkerResource> sortedResources;
   private Set<String> failedWorkers;
 
-  public ClusterManager(WorkerCommunicator wc, final TajoConf conf,
-      LeafServerTracker tracker) throws IOException {
-    this.wc = wc;
+  public ClusterManager(final TajoConf conf,
+                        final WorkerCommunicator wc,
+                        final WorkerTracker tracker,
+                        final CatalogService catalog,
+                        final EventHandler eventHandler)
+      throws IOException {
+
     this.conf = conf;
+    this.wc = wc;
     this.tracker = tracker;
+    this.catalog = catalog;
+    this.eventHandler = eventHandler;
+
     this.DNSNameToHostsMap = Maps.newConcurrentMap();
     this.servingInfoMap = Maps.newConcurrentMap();
     this.resourcePool = Maps.newConcurrentMap();
     this.sortedResources = new PriorityQueue<WorkerResource>();
     this.failedWorkers = Sets.newHashSet();
     this.clusterSize = 0;
-  }
-
-  public void init() throws IOException {
-    this.catalog = new CatalogClient(this.conf);
   }
 
   public WorkerInfo getWorkerInfo(String workerName) throws RemoteException,
@@ -182,10 +115,6 @@ public class ClusterManager {
       return null;
     }
 
-  }
-
-  public List<QueryUnitId> getProcessingQuery(String workerName) {
-    return null;
   }
 
   public void updateOnlineWorker() {
@@ -277,58 +206,6 @@ public class ClusterManager {
   public FragmentServingInfo getServingInfo(Fragment fragment) {
     return this.servingInfoMap.get(fragment);
   }
-  
-  private String getRandomWorkerNameOfHost(String host) {
-    List<String> workers = DNSNameToHostsMap.get(host);
-    return workers.get(rand.nextInt(workers.size()));
-  }
-
-  private List<FragmentServInfo> getFragmentLocInfo(TableDescProto desc)
-      throws IOException {
-    int fileIdx, blockIdx;
-    FileSystem fs = FileSystem.get(conf);
-    Path path = new Path(desc.getPath());
-    
-    FileStatus[] files = fs.listStatus(new Path(path + "/data"));
-    if (files == null || files.length == 0) {
-      throw new FileNotFoundException(path.toString() + "/data");
-    }
-    BlockLocation[] blocks;
-    String[] hosts;
-    List<FragmentServInfo> fragmentInfoList = 
-        new ArrayList<FragmentServInfo>();
-    
-    for (fileIdx = 0; fileIdx < files.length; fileIdx++) {
-      blocks = fs.getFileBlockLocations(files[fileIdx], 0,
-          files[fileIdx].getLen());
-      for (blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
-        hosts = blocks[blockIdx].getHosts();
-        // TODO: select the proper serving node for block
-        Fragment fragment = new Fragment(desc.getId(),
-            files[fileIdx].getPath(), new TableMetaImpl(desc.getMeta()),
-            blocks[blockIdx].getOffset(), blocks[blockIdx].getLength());
-        fragmentInfoList.add(new FragmentServInfo(hosts[0], -1, fragment));
-      }
-    }
-    return fragmentInfoList;
-  }
-  
-  /**
-   * Select a random worker
-   * 
-   * @return
-   * @throws Exception
-   */
-  /*public String getRandomHost() {
-    int n = rand.nextInt(resourcePool.size());
-    Iterator<String> it = resourcePool.keySet().iterator();
-    for (int i = 0; i < n-1; i++) {
-      it.next();
-    }
-    String randomHost = it.next();
-    this.getResource(randomHost);
-    return randomHost;
-  }*/
 
   public String getNextFreeHost() {
     return sortedResources.iterator().next().getName();
@@ -342,11 +219,87 @@ public class ClusterManager {
     this.failedWorkers.add(worker);
   }
 
-  public synchronized boolean isExist(String worker) {
-    return this.failedWorkers.contains(worker);
+  @Override
+  public void handle(WorkerEvent workerEvent) {
+    switch (workerEvent.getType()) {
+      case FREE:
+        resourcePool.get(workerEvent.getWorkerName()).returnResource();
+        break;
+    }
   }
 
-  public synchronized void removeFailedWorker(String worker) {
-    this.failedWorkers.remove(worker);
+  public class WorkerInfo {
+    public int availableProcessors;
+    public long freeMemory;
+    public long totalMemory;
+    public int taskNum;
+
+    public List<DiskInfo> disks = new ArrayList<DiskInfo>();
+  }
+
+  public class DiskInfo {
+    public long freeSpace;
+    public long totalSpace;
+  }
+
+  public class WorkerResource implements Comparable<WorkerResource> {
+    private String name;
+    private Integer freeResource;
+
+    public WorkerResource(String name, int freeResource) {
+      this.name = name;
+      this.freeResource = freeResource;
+    }
+
+    public String getName() {
+      return this.name;
+    }
+
+    public int getFreeResource() {
+      return this.freeResource;
+    }
+
+    public boolean hasFreeResource() {
+      return this.freeResource > 0;
+    }
+
+    public boolean getResource() {
+      if (hasFreeResource()) {
+        freeResource--;
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+    public void returnResource() {
+      freeResource++;
+    }
+
+    @Override
+    public int compareTo(WorkerResource workerResource) {
+      return workerResource.freeResource - this.freeResource;
+    }
+
+    @Override
+    public int hashCode() {
+      return name.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (o instanceof WorkerResource) {
+        WorkerResource wr = (WorkerResource) o;
+        if (wr.name.equals(this.name) && wr.freeResource == this.freeResource) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    @Override
+    public String toString() {
+      return name + " : " + freeResource;
+    }
   }
 }

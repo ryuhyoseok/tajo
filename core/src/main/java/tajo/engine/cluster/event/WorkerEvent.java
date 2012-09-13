@@ -16,31 +16,19 @@
  *  limitations under the License.
  */
 
-package tajo.master;
+package tajo.engine.cluster.event;
 
-import tajo.engine.MasterWorkerProtos.QueryStatus;
+import org.apache.hadoop.yarn.event.AbstractEvent;
 
-public abstract class AbstractQuery {
+public class WorkerEvent extends AbstractEvent<WorkerEventType> {
+  private String workerName;
 
-  private InProgressStatus status;
-
-  public AbstractQuery() {
-    this.status = new InProgressStatus();
+  public WorkerEvent(String workerName, WorkerEventType workerEventType) {
+    super(workerEventType);
+    this.workerName = workerName;
   }
 
-  public void setProgress(float progress) {
-    this.status.setProgress(progress);
-  }
-  
-  public void setStatus(QueryStatus status) {
-    this.status.setStatus(status);
-  }
-  
-  public QueryStatus getStatus() {
-    return this.status.getStatus();
-  }
-  
-  public float getProgress() {
-    return status.getProgress();
+  public String getWorkerName() {
+    return workerName;
   }
 }
