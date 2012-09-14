@@ -18,8 +18,9 @@
 
 package tajo.master;
 
-public enum SubQueryStatus {
+public enum SubQueryState {
   NEW,
+  INIT,
   RUNNING,
   SUCCEEDED,
   FAILED

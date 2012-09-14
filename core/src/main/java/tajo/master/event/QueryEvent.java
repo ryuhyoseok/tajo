@@ -18,18 +18,18 @@
 
 package tajo.master.event;
 
-/**
- * Event Types handled by SubQueryExecutor
- */
-public enum SubQueryEventType {
+import org.apache.hadoop.yarn.event.AbstractEvent;
+import tajo.QueryId;
 
-  // Producer:
-  SQ_INIT,
-  SQ_START,
+public class QueryEvent extends AbstractEvent<QueryEventType> {
+  private final QueryId id;
 
-  // Producer: QueryUnit
-  SQ_TASK_COMPLETED,
-  SQ_ABORT,
+  public QueryEvent(final QueryId id, final QueryEventType queryEvent) {
+    super(queryEvent);
+    this.id = id;
+  }
 
-  SQ_INTERNAL_ERROR
+  public QueryId getQueryId() {
+    return id;
+  }
 }

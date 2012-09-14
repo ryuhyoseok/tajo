@@ -19,6 +19,7 @@
 package tajo;
 
 import com.google.common.collect.Lists;
+import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,6 +30,7 @@ import tajo.catalog.proto.CatalogProtos.StoreType;
 import tajo.conf.TajoConf;
 import tajo.datum.Datum;
 import tajo.datum.DatumFactory;
+import tajo.engine.cluster.ClusterManager;
 import tajo.engine.parser.QueryAnalyzer;
 import tajo.engine.planner.LogicalOptimizer;
 import tajo.engine.planner.LogicalPlanner;
@@ -39,6 +41,7 @@ import tajo.engine.planner.logical.LogicalNode;
 import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
+import tajo.master.GlobalEngine;
 import tajo.master.Query;
 import tajo.master.SubQuery;
 import tajo.storage.Appender;
@@ -110,14 +113,21 @@ public class TestTajoTestingUtility {
 
   @Test
   public final void test() throws Exception {
+    ClusterManager cm = util.getMiniTajoCluster().getMaster().getClusterManager();
+    GlobalEngine ge = util.getMiniTajoCluster().getMaster().getGlobalEngine();
+
+    AsyncDispatcher dispatcher = new AsyncDispatcher();
+    dispatcher.start();
+
     Fragment[] frags = sm.split("employee", 40000);
     int splitIdx = (int) Math.ceil(frags.length / 2.f);
     QueryIdFactory.reset();
     QueryId queryId = QueryIdFactory.newQueryId();
     SubQueryId subQueryId = QueryIdFactory.newSubQueryId(queryId);
     Query query = new Query(queryId,
-        "testNtaTestingUtil := select deptName, sleep(name) from employee group by deptName");
-    SubQuery subQuery = new SubQuery(subQueryId);
+        "testNtaTestingUtil := select deptName, sleep(name) from employee group by deptName",
+        dispatcher.getEventHandler(), null, null, sm);
+    SubQuery subQuery = new SubQuery(subQueryId, dispatcher.getEventHandler(), sm, null, cm);
     query.addSubQuery(subQuery);
     util.getMiniTajoCluster().getMaster().getQueryManager().addQuery(query);
 

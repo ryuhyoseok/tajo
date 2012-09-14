@@ -23,6 +23,8 @@ package tajo.master;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.event.EventHandler;
+import tajo.QueryId;
+import tajo.QueryIdFactory;
 import tajo.catalog.CatalogService;
 import tajo.catalog.TCatUtil;
 import tajo.catalog.TableDesc;
@@ -43,10 +45,9 @@ import tajo.engine.planner.LogicalPlanner;
 import tajo.engine.planner.PlanningContext;
 import tajo.engine.planner.global.GlobalOptimizer;
 import tajo.engine.planner.global.MasterPlan;
-import tajo.engine.planner.global.QueryUnit;
-import tajo.engine.planner.global.QueryUnitAttempt;
-import tajo.engine.planner.global.event.TaskAttemptEvent;
 import tajo.engine.planner.logical.*;
+import tajo.master.event.QueryEvent;
+import tajo.master.event.QueryEventType;
 import tajo.storage.StorageManager;
 import tajo.storage.StorageUtil;
 
@@ -63,7 +64,7 @@ public class GlobalEngine implements EngineService {
   private QueryManager qm;
   private ClusterManager cm;
 
-  private EventHandler eventHandler;
+  private final EventHandler eventHandler;
 
   public GlobalEngine(final TajoConf conf, final CatalogService cat,
                       final StorageManager sm, final WorkerCommunicator wc,
@@ -137,24 +138,41 @@ public class GlobalEngine implements EngineService {
       // other queries are executed by workers
       updateFragmentServingInfo(context);
 
-      Query query = GlobalEngineUtil.newQuery(tql);
-      qm.addQuery(query);
-      query.setStatus(QueryStatus.QUERY_INITED);
+      QueryId queryId = QueryIdFactory.newQueryId();
+
 
       // build the master plan
       GlobalPlanner globalPlanner =
-          new GlobalPlanner(conf, this.sm, this.qm, this.catalog);
+          new GlobalPlanner(conf, this.sm, this.qm, this.catalog, eventHandler, cm);
       GlobalOptimizer globalOptimizer = new GlobalOptimizer();
-      MasterPlan globalPlan = globalPlanner.build(query.getId(), plan);
+      MasterPlan globalPlan = globalPlanner.build(queryId, plan);
       globalPlan = globalOptimizer.optimize(globalPlan.getRoot());
 
-      query.setStatus(QueryStatus.QUERY_INPROGRESS);
-      SubQueryExecutor executor = new SubQueryExecutor(conf,
-          wc, globalPlanner, cm, qm, sm, globalPlan, eventHandler);
-      executor.start();
-      executor.join();
+      QueryId qid = QueryIdFactory.newQueryId();
+      Query query = new Query(qid, tql, eventHandler, globalPlanner, globalPlan, sm);
+      qm.addQuery(query);
+      eventHandler.handle(new QueryEvent(query.getId(),
+          QueryEventType.QUERY_INIT));
 
-      finalizeQuery(query);
+      eventHandler.handle(new QueryEvent(query.getId(), QueryEventType.QUERY_START));
+
+//      query.setState(QueryStatus.QUERY_INPROGRESS);
+//      SubQueryExecutor executor = new SubQueryExecutor(conf,
+//          wc, globalPlanner, cm, qm, sm, globalPlan, eventHandler);
+//      executor.start();
+//      executor.join();
+
+      //finalizeQuery(query);
+
+      while(true) {
+        if (query.getState() == QueryStatus.QUERY_FINISHED
+          || query.getState() == QueryStatus.QUERY_ABORTED
+          || query.getState() == QueryStatus.QUERY_KILLED) {
+          break;
+        }
+
+        Thread.sleep(1000);
+      }
 
       if (hasStoreNode) {
         // create table queries are executed by the master
@@ -193,7 +211,7 @@ public class GlobalEngine implements EngineService {
     int i = 0, size = query.getSubQueries().size();
     QueryStatus queryStatus = QueryStatus.QUERY_ABORTED;
     for (SubQuery sq : query.getSubQueries()) {
-      if (sq.getStatus() != QueryStatus.QUERY_FINISHED) {
+      if (sq.getState() != SubQueryState.SUCCEEDED) {
         break;
       }
       ++i;
@@ -201,7 +219,7 @@ public class GlobalEngine implements EngineService {
     if (i > 0 && i == size) {
       queryStatus = QueryStatus.QUERY_FINISHED;
     }
-    query.setStatus(queryStatus);
+    query.setState(queryStatus);
     return queryStatus;
   }
 

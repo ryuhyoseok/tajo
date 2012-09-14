@@ -52,6 +52,8 @@ import tajo.engine.cluster.event.WorkerEventType;
 import tajo.engine.planner.global.QueryUnitAttempt;
 import tajo.engine.planner.global.event.TaskAttemptEvent;
 import tajo.engine.planner.global.event.TaskAttemptEventType;
+import tajo.master.event.QueryEvent;
+import tajo.master.event.QueryEventType;
 import tajo.rpc.NettyRpc;
 import tajo.rpc.NettyRpcServer;
 import tajo.rpc.RemoteException;
@@ -206,12 +208,21 @@ public class TajoMaster extends CompositeService implements ClientService {
           catalog, storeManager, wc, qm, cm, dispatcher.getEventHandler());
       this.queryEngine.init();
 
+      dispatcher.register(QueryEventType.class, new QueryEventDispatcher());
+
       this.wl.start();
     } catch (Exception e) {
 
     }
 
     super.init(conf);
+  }
+
+  private class QueryEventDispatcher
+      implements EventHandler<QueryEvent> {
+    public void handle(QueryEvent event) {
+      qm.getQuery(event.getQueryId()).handle(event);
+    }
   }
 
   private class TaskAttemptEventDispatcher
@@ -300,6 +311,10 @@ public class TajoMaster extends CompositeService implements ClientService {
 
   public WorkerCommunicator getWorkerCommunicator() {
     return wc;
+  }
+
+  public GlobalEngine getGlobalEngine() {
+    return this.queryEngine;
   }
 
   public ClusterManager getClusterManager() {

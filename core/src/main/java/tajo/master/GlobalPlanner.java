@@ -29,6 +29,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.event.EventHandler;
 import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 import tajo.QueryId;
 import tajo.QueryIdFactory;
@@ -42,6 +43,7 @@ import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.MasterWorkerProtos.Partition;
 import tajo.engine.MasterWorkerProtos.QueryStatus;
+import tajo.engine.cluster.ClusterManager;
 import tajo.engine.cluster.QueryManager;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.engine.parser.QueryBlock.FromTable;
@@ -73,16 +75,22 @@ public class GlobalPlanner {
   private QueryManager qm;
   private CatalogService catalog;
   private QueryId subId;
+  private EventHandler eventHandler;
+  private ClusterManager cm;
 
   public GlobalPlanner(TajoConf conf,
                        StorageManager sm,
                        QueryManager qm,
-                       CatalogService catalog)
+                       CatalogService catalog,
+                       EventHandler eventHandler,
+                       ClusterManager cm)
       throws IOException {
     this.conf = conf;
     this.sm = sm;
     this.qm = qm;
     this.catalog = catalog;
+    this.eventHandler = eventHandler;
+    this.cm = cm;
   }
 
   /**
@@ -320,7 +328,7 @@ public class GlobalPlanner {
         } else {
           id = QueryIdFactory.newSubQueryId(subId);
         }
-        unit = new SubQuery(id);
+        unit = new SubQuery(id, eventHandler, sm, this, cm);
 
         switch (store.getSubNode().getType()) {
         case BST_INDEX_SCAN:
@@ -711,7 +719,7 @@ public class GlobalPlanner {
         getStoreTableNode().getSubNode();
     SubQuery newPhaseGroupby = new SubQuery(
         QueryIdFactory.newSubQueryId(
-            firstPhaseGroupby.getId().getQueryId()));
+            firstPhaseGroupby.getId().getQueryId()), eventHandler, sm, this, cm);
     LogicalNode tmp = PlannerUtil.findTopParentNode(
         firstPhaseGroupby.getLogicalPlan(), ExprType.GROUP_BY);
     GroupbyNode firstGroupby = null;
@@ -798,7 +806,7 @@ public class GlobalPlanner {
     
     if (index != null) {
       SubQueryId id = QueryIdFactory.newSubQueryId(subId);
-      SubQuery unit = new SubQuery(id);
+      SubQuery unit = new SubQuery(id, eventHandler, sm, this, cm);
       root = makeScanUnit(unit);
       root.setLogicalPlan(index);
     } else {
@@ -1204,7 +1212,7 @@ public class GlobalPlanner {
     QueryUnit unit = new QueryUnit(
         QueryIdFactory.newQueryUnitId(subQuery.getId()));
     unit.setLogicalPlan(subQuery.getLogicalPlan());
-    unit.setStatus(QueryStatus.QUERY_NEW);
+    unit.setState(QueryStatus.QUERY_NEW);
     return unit;
   }
   

@@ -26,7 +26,6 @@ import tajo.catalog.statistics.TableStat;
 import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.engine.planner.global.event.TaskAttemptEvent;
-import tajo.engine.planner.global.event.TaskAttemptEventType;
 import tajo.engine.planner.global.event.TaskAttemptStatusUpdateEvent;
 import tajo.master.AbstractQuery;
 
@@ -55,7 +54,7 @@ public class QueryUnitAttempt extends AbstractQuery
     return this.queryUnit;
   }
 
-  public QueryStatus getStatus() {
+  public QueryStatus getState() {
     return status;
   }
 
@@ -63,7 +62,7 @@ public class QueryUnitAttempt extends AbstractQuery
     return this.hostName;
   }
 
-  public void setStatus(QueryStatus status) {
+  public void setState(QueryStatus status) {
     this.status = status;
   }
 
@@ -90,7 +89,7 @@ public class QueryUnitAttempt extends AbstractQuery
   private void updateProgress(TaskStatusProto progress) {
     if (status != progress.getStatus()) {
       this.setProgress(progress.getProgress());
-      this.setStatus(progress.getStatus());
+      this.setState(progress.getStatus());
       if (progress.getPartitionsCount() > 0) {
         this.getQueryUnit().setPartitions(progress.getPartitionsList());
       }

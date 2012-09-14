@@ -214,7 +214,7 @@ public class QueryUnit extends AbstractQuery {
     QueryUnitAttempt attempt = new QueryUnitAttempt(
         QueryIdFactory.newQueryUnitAttemptId(this.getId(),
             ++lastAttemptId), this);
-    attempt.setStatus(QueryStatus.QUERY_NEW);
+    attempt.setState(QueryStatus.QUERY_NEW);
     this.attemptMap.put(attempt.getId().getId(), attempt);
     return attempt;
   }

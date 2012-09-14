@@ -24,6 +24,7 @@
 package tajo.engine.planner.global;
 
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -95,8 +96,10 @@ public class TestGlobalQueryOptimizer {
     catalog.registerFunction(funcDesc);
     FileSystem fs = sm.getFileSystem();
 
+    AsyncDispatcher dispatcher = new AsyncDispatcher();
+
     qm = new QueryManager();
-    planner = new GlobalPlanner(conf, new StorageManager(conf), qm, catalog);
+    planner = new GlobalPlanner(conf, new StorageManager(conf), qm, catalog, dispatcher.getEventHandler(), null);
     analyzer = new QueryAnalyzer(catalog);
     logicalPlanner = new LogicalPlanner(catalog);
 

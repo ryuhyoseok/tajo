@@ -81,7 +81,7 @@ public class TQueryUtil {
   public static TaskStatusProto getInProgressStatusProto(QueryUnit unit) {
     TaskStatusProto.Builder builder = TaskStatusProto.newBuilder();
     builder.setId(unit.getLastAttempt().getId().getProto());
-    builder.setStatus(unit.getStatus());
+    builder.setStatus(unit.getState());
     builder.setProgress(unit.getProgress());
     builder.addAllPartitions(unit.getPartitions());
     builder.setResultStats(unit.getStats().getProto());

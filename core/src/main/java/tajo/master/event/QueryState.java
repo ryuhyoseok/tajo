@@ -18,18 +18,12 @@
 
 package tajo.master.event;
 
-/**
- * Event Types handled by SubQueryExecutor
- */
-public enum SubQueryEventType {
-
-  // Producer:
-  SQ_INIT,
-  SQ_START,
-
-  // Producer: QueryUnit
-  SQ_TASK_COMPLETED,
-  SQ_ABORT,
-
-  SQ_INTERNAL_ERROR
+public enum QueryState {
+  NEW,
+  INIT,
+  RUNNING,
+  FAILED,
+  KILLED,
+  INTERNAL_ERROR,
+  SUCCEEDED
 }

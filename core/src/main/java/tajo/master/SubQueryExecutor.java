@@ -304,7 +304,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
       LOG.info("Query scheduler is started!");
       init();
 
-      while (status == Status.INPROGRESS) {
+      while (this.status == Status.INPROGRESS) {
         try {
           this.sleeper.sleep(WAIT_PERIOD);
           if (this.isFinished()) {
@@ -324,7 +324,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
               int numTasks = getTaskNum(subQuery);
               QueryUnit[] units = planner.localize(subQuery, numTasks);
               inprogressQueue.put(subQuery);
-              subQuery.setStatus(QueryStatus.QUERY_INPROGRESS);
+              //subQuery.setState(QueryStatus.QUERY_INPROGRESS);
 
               if (units.length == 0) {
                 finishSubQueryForEmptyInput(subQuery);
@@ -363,12 +363,12 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
     public void abort() {
       status = Status.ABORTED;
       for (SubQuery unit : scheduleQueue) {
-        unit.setStatus(QueryStatus.QUERY_ABORTED);
+        //unit.setState(SubQueryState.FAILED);
       }
       scheduleQueue.clear();
 
       for (SubQuery unit : inprogressQueue) {
-        unit.setStatus(QueryStatus.QUERY_ABORTED);
+        //unit.setState(QueryStatus.QUERY_ABORTED);
       }
       inprogressQueue.clear();
     }
@@ -420,7 +420,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
       }
       subQuery.setPriority(priority);
       scheduleQueue.add(subQuery);
-      subQuery.setStatus(QueryStatus.QUERY_PENDING);
+      //subQuery.setState(QueryStatus.QUERY_PENDING);
     }
 
     private SubQuery takeSubQuery() {
@@ -453,8 +453,8 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
     private boolean isReady(SubQuery subQuery) {
       if (subQuery.hasChildQuery()) {
         for (SubQuery child : subQuery.getChildQueries()) {
-          if (child.getStatus() !=
-              QueryStatus.QUERY_FINISHED) {
+          if (child.getState() !=
+              SubQueryState.SUCCEEDED) {
             return false;
           }
         }
@@ -514,7 +514,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
       }
       subQuery.setStats(stat);
       writeStat(subQuery, stat);
-      subQuery.setStatus(QueryStatus.QUERY_FINISHED);
+      //subQuery.setState(QueryStatus.QUERY_FINISHED);
     }
 
     private void finishUnionUnit(SubQuery unit) throws IOException {
@@ -522,7 +522,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
       TableStat stat = generateUnionStat(unit);
       unit.setStats(stat);
       writeStat(unit, stat);
-      unit.setStatus(QueryStatus.QUERY_FINISHED);
+      //unit.setState(QueryStatus.QUERY_FINISHED);
     }
 
     /**
@@ -596,7 +596,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
         throws InterruptedException {
       for (QueryUnit unit : units) {
         pendingQueue.put(unit);
-        unit.setStatus(QueryStatus.QUERY_PENDING);
+        unit.setState(QueryStatus.QUERY_PENDING);
       }
     }
 
@@ -613,7 +613,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
             QueryUnit unit = cluster.next();
             cluster.removeQueryUnit(unit);
             pendingQueue.put(unit);
-            unit.setStatus(QueryStatus.QUERY_PENDING);
+            unit.setState(QueryStatus.QUERY_PENDING);
           } else {
             toBeRemoved.add(cluster);
           }
@@ -672,7 +672,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
     }
 
     public boolean isFinished() {
-      if (plan.getRoot().getStatus() == QueryStatus.QUERY_FINISHED) {
+      if (plan.getRoot().getState() == SubQueryState.SUCCEEDED) {
         return true;
       } else {
         return false;
@@ -686,7 +686,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
     public void abort() {
       status = Status.ABORTED;
       for (QueryUnit unit : pendingQueue) {
-        unit.setStatus(QueryStatus.QUERY_ABORTED);
+        unit.setState(QueryStatus.QUERY_ABORTED);
       }
 
       // TODO: send stop commands
@@ -696,7 +696,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
         } catch (Exception e) {
           LOG.error(ExceptionUtils.getFullStackTrace(e));
         }
-        attempt.setStatus(QueryStatus.QUERY_ABORTED);
+        attempt.setState(QueryStatus.QUERY_ABORTED);
       }
     }
 
@@ -738,7 +738,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
         int finish = 0;
         int submitted = 0;
         for (QueryUnit queryUnit : subQuery.getQueryUnits()) {
-          QueryStatus status = queryUnit.getStatus();
+          QueryStatus status = queryUnit.getState();
 
           switch (status) {
             case QUERY_SUBMITED: submitted++; break;
@@ -773,7 +773,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
           TableStat stat = generateStat(subQuery);
           writeStat(subQuery, stat);
           subQuery.setStats(stat);
-          subQuery.setStatus(QueryStatus.QUERY_FINISHED);
+          //subQuery.setState(QueryStatus.QUERY_FINISHED);
           if (subQuery.hasChildQuery()) {
             finalizePrevSubQuery(subQuery);
           }
@@ -828,7 +828,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
       for (QueryUnitAttempt attempt : submittedQueryUnits) {
         retryRequired = false;
         wait = false;
-        status = attempt.getStatus();
+        status = attempt.getState();
 
         switch (status) {
           case QUERY_SUBMITED:
@@ -849,7 +849,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
             break;
           case QUERY_FINISHED:
             toBeRemoved.add(attempt);
-            attempt.getQueryUnit().setStatus(QueryStatus.QUERY_FINISHED);
+            attempt.getQueryUnit().setState(QueryStatus.QUERY_FINISHED);
             success++;
             cm.freeSlot(attempt.getHost());
             break;
@@ -872,7 +872,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
           attempt.updateExpireTime(WAIT_PERIOD);
           if (attempt.getLeftTime() <= 0) {
             LOG.info("QueryUnit " + attempt.getId() + " is expired!!");
-            attempt.setStatus(QueryStatus.QUERY_ABORTED);
+            attempt.setState(QueryStatus.QUERY_ABORTED);
             toBeRemoved.add(attempt);
             retryRequired = true;
           }
@@ -901,7 +901,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
     private void requestPendingQueryUnits() throws Exception {
       while (cm.remainFreeResource() && !pendingQueue.isEmpty()) {
         QueryUnit q = pendingQueue.take();
-        q.setStatus(QueryStatus.QUERY_INPROGRESS);
+        q.setState(QueryStatus.QUERY_INPROGRESS);
 
         List<Fragment> fragList = new ArrayList<Fragment>();
         for (ScanNode scan : q.getScanNodes()) {
@@ -921,7 +921,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
           }
         } else {
           submittedQueryUnits.add(attempt);
-          attempt.setStatus(QueryStatus.QUERY_SUBMITED);
+          attempt.setState(QueryStatus.QUERY_SUBMITED);
         }
       }
     }
@@ -1004,7 +1004,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
       int retryCnt = unit.getRetryCount();
 
       if (retryCnt < RETRY_LIMIT) {
-        attempt.setStatus(QueryStatus.QUERY_ABORTED);
+        attempt.setState(QueryStatus.QUERY_ABORTED);
         commitBackupTask(attempt);
         return true;
       } else {

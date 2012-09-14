@@ -18,18 +18,26 @@
 
 package tajo.master.event;
 
-/**
- * Event Types handled by SubQueryExecutor
- */
-public enum SubQueryEventType {
+import tajo.QueryId;
+import tajo.SubQueryId;
+import tajo.master.SubQueryState;
 
-  // Producer:
-  SQ_INIT,
-  SQ_START,
+public class SubQueryCompletedEvent extends QueryEvent {
+  private final SubQueryId subQueryId;
+  private final SubQueryState finalState;
 
-  // Producer: QueryUnit
-  SQ_TASK_COMPLETED,
-  SQ_ABORT,
+  public SubQueryCompletedEvent(final SubQueryId subQueryId,
+                                SubQueryState finalState) {
+    super(subQueryId.getQueryId(), QueryEventType.QUERY_SUBQUERY_COMPLETED);
+    this.subQueryId = subQueryId;
+    this.finalState = finalState;
+  }
 
-  SQ_INTERNAL_ERROR
+  public SubQueryId getSubQueryId() {
+    return subQueryId;
+  }
+
+  public SubQueryState getFinalState() {
+    return finalState;
+  }
 }

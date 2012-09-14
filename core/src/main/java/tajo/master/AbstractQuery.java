@@ -32,11 +32,11 @@ public abstract class AbstractQuery {
     this.status.setProgress(progress);
   }
   
-  public void setStatus(QueryStatus status) {
+  public void setState(QueryStatus status) {
     this.status.setStatus(status);
   }
   
-  public QueryStatus getStatus() {
+  public QueryStatus getState() {
     return this.status.getStatus();
   }
   

@@ -21,23 +21,35 @@
 package tajo.master;
 
 import com.google.common.base.Preconditions;
-import org.apache.hadoop.yarn.state.MultipleArcTransition;
-import org.apache.hadoop.yarn.state.SingleArcTransition;
-import org.apache.hadoop.yarn.state.StateMachineFactory;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.state.*;
 import tajo.QueryUnitId;
 import tajo.SubQueryId;
 import tajo.catalog.Schema;
 import tajo.catalog.statistics.TableStat;
-import tajo.engine.MasterWorkerProtos.QueryStatus;
+import tajo.engine.cluster.ClusterManager;
+import tajo.engine.planner.PlannerUtil;
 import tajo.engine.planner.global.QueryUnit;
 import tajo.engine.planner.logical.*;
+import tajo.master.event.SubQueryCompletedEvent;
 import tajo.master.event.SubQueryEvent;
 import tajo.master.event.SubQueryEventType;
+import tajo.storage.StorageManager;
 
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 
-public class SubQuery extends AbstractQuery {
+public class SubQuery implements EventHandler<SubQueryEvent> {
+
+  private static final Log LOG = LogFactory.getLog(SubQuery.class);
 
   public enum PARTITION_TYPE {
     /** for hash partitioning */
@@ -61,35 +73,68 @@ public class SubQuery extends AbstractQuery {
   private boolean hasUnionPlan;
   private Priority priority;
   private TableStat stats;
-  private QueryStatus status;
+  private final EventHandler eventHandler;
+  private final StorageManager sm;
+  private final GlobalPlanner planner;
+  private final ClusterManager cm;
 
-  private StateMachineFactory<SubQueryExecutor, SubQueryStatus,
+  private StateMachine<SubQueryState, SubQueryEventType, SubQueryEvent> stateMachine;
+
+  private StateMachineFactory<SubQuery, SubQueryState,
       SubQueryEventType, SubQueryEvent> stateMachineFactory =
-      new StateMachineFactory <SubQueryExecutor, SubQueryStatus,
-          SubQueryEventType, SubQueryEvent> (SubQueryStatus.NEW)
+      new StateMachineFactory <SubQuery, SubQueryState,
+          SubQueryEventType, SubQueryEvent> (SubQueryState.NEW)
 
-      .addTransition(SubQueryStatus.NEW, SubQueryStatus.RUNNING,
-          SubQueryEventType.SQ_START, new SubQueryStartTransition())
-      .addTransition(SubQueryStatus.RUNNING,
-          EnumSet.of(SubQueryStatus.RUNNING, SubQueryStatus.SUCCEEDED,
-              SubQueryStatus.FAILED),
+      .addTransition(SubQueryState.NEW,
+          EnumSet.of(SubQueryState.INIT, SubQueryState.FAILED),
+          SubQueryEventType.SQ_INIT, new InitTransition())
+
+      .addTransition(SubQueryState.INIT, SubQueryState.RUNNING,
+          SubQueryEventType.SQ_START, new StartTransition())
+
+      .addTransition(SubQueryState.RUNNING,
+          EnumSet.of(SubQueryState.RUNNING, SubQueryState.SUCCEEDED,
+              SubQueryState.FAILED),
           SubQueryEventType.SQ_TASK_COMPLETED, new TaskCompletedTransition())
-      .addTransition(SubQueryStatus.RUNNING, SubQueryStatus.FAILED,
+
+      .addTransition(SubQueryState.RUNNING, SubQueryState.FAILED,
           SubQueryEventType.SQ_ABORT, new InternalErrorTransition());
 
-
+  private final Lock readLock;
+  private final Lock writeLock;
   
-  public SubQuery(SubQueryId id) {
+  public SubQuery(SubQueryId id, EventHandler eventHandler, StorageManager sm,
+                  GlobalPlanner planner, ClusterManager cm) {
     this.id = id;
     prevs = new HashMap<ScanNode, SubQuery>();
     scanlist = new ArrayList<ScanNode>();
     hasJoinPlan = false;
     hasUnionPlan = false;
+    this.eventHandler = eventHandler;
+    this.sm = sm;
+    this.planner = planner;
+    this.cm = cm;
+
+    ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    this.readLock = readWriteLock.readLock();
+    this.writeLock = readWriteLock.writeLock();
+
+
+    stateMachine = stateMachineFactory.make(this);
   }
   
   public void setOutputType(PARTITION_TYPE type) {
     this.outputType = type;
   }
+
+  public GlobalPlanner getPlanner() {
+    return planner;
+  }
+
+  public ClusterManager getClusterManager() {
+    return cm;
+  }
+
   
   public void setLogicalPlan(LogicalNode plan) {
     hasJoinPlan = false;
@@ -124,6 +169,20 @@ public class SubQuery extends AbstractQuery {
         scanlist.add((ScanNode)node);
       }
     }
+  }
+
+  public void abortSubQuery(SubQueryState finalState) {
+    // TODO -
+    // - committer.abortSubQuery(...)
+    // - record SubQuery Finish Time
+    // - CleanUp Tasks
+    // - Record History
+
+    eventHandler.handle(new SubQueryCompletedEvent(getId(), finalState));
+  }
+
+  public StateMachine<SubQueryState, SubQueryEventType, SubQueryEvent> getStateMachine() {
+    return this.stateMachine;
   }
 
   public boolean hasJoinPlan() {
@@ -171,6 +230,10 @@ public class SubQuery extends AbstractQuery {
     if (this.priority == null) {
       this.priority = new Priority(priority);
     }
+  }
+
+  public StorageManager getStorageManager() {
+    return sm;
   }
 
   public void setStats(TableStat stat) {
@@ -280,41 +343,120 @@ public class SubQuery extends AbstractQuery {
     return this.id.compareTo(other.id);
   }
 
-  public void setStatus(QueryStatus status) {
-    this.status = status;
+  public SubQueryState getState() {
+    return this.stateMachine.getCurrentState();
   }
 
-  public QueryStatus getStatus() {
-    return this.status;
-  }
-
-  class SubQueryStartTransition implements
-      SingleArcTransition<SubQueryExecutor, SubQueryEvent> {
+  static class InitTransition implements
+      MultipleArcTransition<SubQuery, SubQueryEvent, SubQueryState> {
 
     @Override
-    public void transition(SubQueryExecutor subQueryExecutor,
+    public SubQueryState transition(SubQuery subQuery,
+                           SubQueryEvent subQueryEvent) {
+      try {
+        initOutputDir(subQuery.getStorageManager(), subQuery.getOutputName(),
+            subQuery.getOutputType());
+
+        int numTasks = getTaskNum(subQuery);
+        QueryUnit[] units = subQuery.getPlanner().localize(subQuery, numTasks);
+        LOG.info("Create " + units.length + " Tasks");
+        return  SubQueryState.INIT;
+      } catch (Exception e) {
+        LOG.warn("SubQuery (" + subQuery.getId() + ") failed", e);
+        return SubQueryState.FAILED;
+      }
+    }
+
+    private void initOutputDir(StorageManager sm, String outputName,
+                               PARTITION_TYPE type)
+        throws IOException {
+      switch (type) {
+        case HASH:
+          Path tablePath = sm.getTablePath(outputName);
+          sm.getFileSystem().mkdirs(tablePath);
+          LOG.info("Table path " + sm.getTablePath(outputName).toString()
+              + " is initialized for " + outputName);
+          break;
+        case RANGE: // TODO - to be improved
+
+        default:
+          if (!sm.getFileSystem().exists(sm.getTablePath(outputName))) {
+            sm.initTableBase(null, outputName);
+            LOG.info("Table path " + sm.getTablePath(outputName).toString()
+                + " is initialized for " + outputName);
+          }
+      }
+    }
+
+    private int getTaskNum(SubQuery subQuery) {
+      int numTasks;
+      GroupbyNode grpNode = (GroupbyNode) PlannerUtil.findTopNode(
+          subQuery.getLogicalPlan(), ExprType.GROUP_BY);
+      if (subQuery.getParentQuery() == null && grpNode != null
+          && grpNode.getGroupingColumns().length == 0) {
+        numTasks = 1;
+      } else {
+        numTasks = subQuery.getClusterManager().getOnlineWorkers().size();
+      }
+      return numTasks;
+    }
+  }
+
+
+
+  class StartTransition implements
+      SingleArcTransition<SubQuery, SubQueryEvent> {
+
+    @Override
+    public void transition(SubQuery subQuery,
                            SubQueryEvent subQueryEvent) {
 
     }
   }
 
   class TaskCompletedTransition implements
-      MultipleArcTransition<SubQueryExecutor, SubQueryEvent, SubQueryStatus> {
+      MultipleArcTransition<SubQuery, SubQueryEvent, SubQueryState> {
 
 
     @Override
-    public SubQueryStatus transition(SubQueryExecutor subQueryExecutor,
+    public SubQueryState transition(SubQuery subQuery,
                                      SubQueryEvent event) {
       return null;
     }
   }
 
   class InternalErrorTransition
-      implements SingleArcTransition<SubQueryExecutor, SubQueryEvent> {
+      implements SingleArcTransition<SubQuery, SubQueryEvent> {
 
     @Override
-    public void transition(SubQueryExecutor subQueryExecutor,
+    public void transition(SubQuery subQuery,
                            SubQueryEvent subQueryEvent) {
+    }
+  }
+
+  @Override
+  public void handle(SubQueryEvent event) {
+    LOG.info("Processing " + event.getSubQueryId() + " of type " + event.getType());
+    try {
+      writeLock.lock();
+      SubQueryState oldState = getState();
+      try {
+        getStateMachine().doTransition(event.getType(), event);
+      } catch (InvalidStateTransitonException e) {
+        LOG.error("Can't handle this event at current state", e);
+        eventHandler.handle(new SubQueryEvent(this.id,
+            SubQueryEventType.SQ_INTERNAL_ERROR));
+      }
+
+      //notify the eventhandler of state change
+      if (oldState != getState()) {
+        LOG.info(id + "Job Transitioned from " + oldState + " to "
+            + getState());
+      }
+    }
+
+    finally {
+      writeLock.unlock();
     }
   }
 }

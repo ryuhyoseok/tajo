@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.zookeeper.KeeperException;
 import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 import org.junit.AfterClass;
@@ -100,8 +101,12 @@ public class TestGlobalQueryPlanner {
     catalog.registerFunction(funcDesc);
     FileSystem fs = sm.getFileSystem();
 
+    AsyncDispatcher dispatcher = new AsyncDispatcher();
+    dispatcher.start();
+
     qm = new QueryManager();
-    planner = new GlobalPlanner(conf, new StorageManager(conf), qm, catalog);
+    planner = new GlobalPlanner(conf, new StorageManager(conf), qm, catalog,
+        dispatcher.getEventHandler(), null);
     analyzer = new QueryAnalyzer(catalog);
     logicalPlanner = new LogicalPlanner(catalog);
 

@@ -224,17 +224,18 @@ public class TestWorker {
     TajoMaster master = util.getMiniTajoCluster().getMaster();
     QueryManager qm = master.getQueryManager();
     Query q = new Query(qid1.getQueryId(),
-        "testLeafServer := select name, empId, deptName from employee");
+        "testLeafServer := select name, empId, deptName from employee",
+        master.getEventHandler(), null, null, sm);
     qm.addQuery(q);
-    SubQuery su = new SubQuery(qid1.getSubQueryId());
+    SubQuery su = new SubQuery(qid1.getSubQueryId(), master.getEventHandler(), sm, null, null);
     qm.addSubQuery(su);
     sm.initTableBase(frags[0].getMeta(), "testLeafServer");
     QueryUnit [] qu = new QueryUnit[2];
     qu[0] = new QueryUnit(qid1);
     qu[1] = new QueryUnit(qid2);
     su.setQueryUnits(qu);
-    qu[0].setStatus(QueryStatus.QUERY_INITED);
-    qu[1].setStatus(QueryStatus.QUERY_INITED);
+    qu[0].setState(QueryStatus.QUERY_INITED);
+    qu[1].setState(QueryStatus.QUERY_INITED);
     QueryUnitAttempt attempt0 = qu[0].newAttempt();
     QueryUnitAttempt attempt1 = qu[1].newAttempt();
     QueryUnitRequest req1 = new QueryUnitRequestImpl(
