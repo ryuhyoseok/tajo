@@ -24,6 +24,7 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.yarn.event.EventHandler;
 import tajo.QueryUnitAttemptId;
 import tajo.common.Sleeper;
 import tajo.conf.TajoConf;
@@ -32,6 +33,7 @@ import tajo.engine.MasterWorkerProtos.StatusReportProto;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.engine.TCommonProtos.QueryUnitAttemptIdProto;
 import tajo.engine.planner.global.QueryUnitAttempt;
+import tajo.engine.planner.global.event.TaskAttemptStatusUpdateEvent;
 import tajo.engine.query.StatusReportImpl;
 import tajo.ipc.MasterWorkerProtocol;
 import tajo.ipc.StatusReport;
@@ -50,12 +52,13 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
   private InetSocketAddress bindAddr;
   private String addr;
   private volatile boolean stopped = false;
-  private QueryManager qm;
   private TajoMaster master;
   private AtomicInteger processed;
   private Sleeper sleeper;
+  private final EventHandler eventHandler;
   
-  public WorkerListener(TajoConf conf, QueryManager qm, TajoMaster master) {
+  public WorkerListener(final TajoConf conf, final TajoMaster master,
+                        final EventHandler eventHandler) {
     String confMasterAddr = conf.getVar(ConfVars.MASTER_ADDRESS);
     InetSocketAddress initIsa = NetUtils.createSocketAddr(confMasterAddr);
     if (initIsa.getAddress() == null) {
@@ -63,7 +66,6 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
     }
     this.rpcServer = NettyRpc.getProtoParamRpcServer(this, 
         MasterWorkerProtocol.class, initIsa);
-    this.qm = qm;
     this.stopped = false;
     this.rpcServer.start();
     this.bindAddr = rpcServer.getBindAddress();
@@ -71,6 +73,7 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
     processed = new AtomicInteger(0);
     sleeper = new Sleeper();
     this.master = master;
+    this.eventHandler = eventHandler;
   }
   
   public InetSocketAddress getBindAddress() {
@@ -103,8 +106,10 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
     for (TaskStatusProto status : report.getProgressList()) {
       QueryUnitAttemptId uid = new QueryUnitAttemptId(status.getId());
       //qm.updateProgress(uid, status);
-      QueryUnitAttempt attempt = qm.getQueryUnitAttempt(uid);
-      attempt.updateProgress(status);
+
+      //QueryUnitAttempt attempt = qm.getQueryUnitAttempt(uid);
+      //attempt.updateProgress(status);
+      eventHandler.handle(new TaskAttemptStatusUpdateEvent(uid, status));
       processed.incrementAndGet();
     }
 

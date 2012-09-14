@@ -20,13 +20,18 @@
 
 package tajo.engine.planner.global;
 
+import org.apache.hadoop.yarn.event.EventHandler;
 import tajo.QueryUnitAttemptId;
 import tajo.catalog.statistics.TableStat;
 import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
+import tajo.engine.planner.global.event.TaskAttemptEvent;
+import tajo.engine.planner.global.event.TaskAttemptEventType;
+import tajo.engine.planner.global.event.TaskAttemptStatusUpdateEvent;
 import tajo.master.AbstractQuery;
 
-public class QueryUnitAttempt extends AbstractQuery {
+public class QueryUnitAttempt extends AbstractQuery
+    implements EventHandler<TaskAttemptEvent> {
   private final static int EXPIRE_TIME = 15000;
 
   private final QueryUnitAttemptId id;
@@ -82,7 +87,7 @@ public class QueryUnitAttempt extends AbstractQuery {
     return this.expire;
   }
 
-  public void updateProgress(TaskStatusProto progress) {
+  private void updateProgress(TaskStatusProto progress) {
     if (status != progress.getStatus()) {
       this.setProgress(progress.getProgress());
       this.setStatus(progress.getStatus());
@@ -94,5 +99,14 @@ public class QueryUnitAttempt extends AbstractQuery {
       }
     }
     this.resetExpireTime();
+  }
+
+  @Override
+  public void handle(TaskAttemptEvent event) {
+    switch (event.getType()) {
+      case TA_UPDATE:
+        updateProgress(((TaskAttemptStatusUpdateEvent)event).getStatus());
+        break;
+    }
   }
 }

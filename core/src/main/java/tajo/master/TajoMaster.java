@@ -49,6 +49,9 @@ import tajo.engine.ClientServiceProtos.*;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.engine.cluster.*;
 import tajo.engine.cluster.event.WorkerEventType;
+import tajo.engine.planner.global.QueryUnitAttempt;
+import tajo.engine.planner.global.event.TaskAttemptEvent;
+import tajo.engine.planner.global.event.TaskAttemptEventType;
 import tajo.rpc.NettyRpc;
 import tajo.rpc.NettyRpcServer;
 import tajo.rpc.RemoteException;
@@ -165,8 +168,9 @@ public class TajoMaster extends CompositeService implements ClientService {
 
       // connect the zkserver
       this.zkClient = new ZkClient(conf);
-
-      this.wl = new WorkerListener(conf, qm, this);
+      this.wl = new WorkerListener(conf, this, dispatcher.getEventHandler());
+      dispatcher.register(TaskAttemptEventType.class,
+          new TaskAttemptEventDispatcher());
 
       // Setup RPC server
       // Get the master address
@@ -196,7 +200,7 @@ public class TajoMaster extends CompositeService implements ClientService {
       this.wc.start();
       this.cm = new ClusterManager(conf, wc, tracker, catalog,
           dispatcher.getEventHandler());
-      this.dispatcher.register(WorkerEventType.class, this.cm);
+      dispatcher.register(WorkerEventType.class, this.cm);
 
       this.queryEngine = new GlobalEngine(conf,
           catalog, storeManager, wc, qm, cm, dispatcher.getEventHandler());
@@ -208,6 +212,14 @@ public class TajoMaster extends CompositeService implements ClientService {
     }
 
     super.init(conf);
+  }
+
+  private class TaskAttemptEventDispatcher
+      implements EventHandler<TaskAttemptEvent> {
+    public void handle(TaskAttemptEvent event) {
+      QueryUnitAttempt attempt = qm.getQueryUnitAttempt(event.getTaskAttemptId());
+      attempt.handle(event);
+    }
   }
 
   protected void addIfService(Object object) {
