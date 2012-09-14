@@ -168,7 +168,7 @@ public class TajoMaster extends CompositeService implements ClientService {
 
       // connect the zkserver
       this.zkClient = new ZkClient(conf);
-      this.wl = new WorkerListener(conf, this, dispatcher.getEventHandler());
+      this.wl = new WorkerListener(conf, this, qm, dispatcher.getEventHandler());
       dispatcher.register(TaskAttemptEventType.class,
           new TaskAttemptEventDispatcher());
 

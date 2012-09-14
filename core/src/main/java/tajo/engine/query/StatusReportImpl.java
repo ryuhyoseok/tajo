@@ -21,6 +21,7 @@ package tajo.engine.query;
 import tajo.engine.MasterWorkerProtos.StatusReportProto;
 import tajo.engine.MasterWorkerProtos.StatusReportProtoOrBuilder;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
+import tajo.engine.TCommonProtos.QueryUnitAttemptIdProto;
 import tajo.ipc.StatusReport;
 
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ public class StatusReportImpl implements StatusReport {
   private Long timestamp;
   private String serverName;
   private List<TaskStatusProto> inProgressQueries;
+  private List<QueryUnitAttemptIdProto> pings;
   
   public StatusReportImpl() {
     builder = StatusReportProto.newBuilder();
@@ -59,6 +61,14 @@ public class StatusReportImpl implements StatusReport {
     }
     StatusReportProtoOrBuilder p = viaProto ? proto : builder;
     this.inProgressQueries = p.getStatusList();
+  }
+
+  private void initPings() {
+    if (this.pings != null) {
+      return;
+    }
+    StatusReportProtoOrBuilder p = viaProto ? proto : builder;
+    this.pings = p.getPingsList();
   }
   
   public Long timestamp() {
@@ -91,6 +101,12 @@ public class StatusReportImpl implements StatusReport {
   public Collection<TaskStatusProto> getProgressList() {
     initProgress();
     return inProgressQueries;
+  }
+
+  @Override
+  public Collection<QueryUnitAttemptIdProto> getPingList() {
+    initPings();
+    return pings;
   }
 
   @Override

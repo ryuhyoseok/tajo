@@ -62,6 +62,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Task implements Runnable {
   private static final Log LOG = LogFactory.getLog(Task.class);
@@ -80,6 +81,13 @@ public class Task implements Runnable {
   private boolean aborted = false;
   private boolean finished = false;
   private int progress = 0;
+
+  /**
+   * flag that indicates whether progress update needs to be sent to parent.
+   * If true, it has been set. If false, it has been reset.
+   * Using AtomicBoolean since we need an atomic read & reset method.
+   */
+  private AtomicBoolean progressFlag = new AtomicBoolean(false);
 
   // TODO - to be refactored
   private SubQuery.PARTITION_TYPE partitionType = null;
@@ -142,6 +150,17 @@ public class Task implements Runnable {
   public void init() throws InternalException {
   }
 
+  // getters and setters for flag
+  void setProgressFlag() {
+    progressFlag.set(true);
+  }
+  boolean resetProgressFlag() {
+    return progressFlag.getAndSet(false);
+  }
+  boolean getProgressFlag() {
+    return progressFlag.get();
+  }
+
   public File createLocalDir(Path path) throws IOException {
     localFS.mkdirs(path);
     Path qualified = localFS.makeQualified(path);
@@ -194,6 +213,7 @@ public class Task implements Runnable {
 
   public void setStatus(QueryStatus status) {
     context.setStatus(status);
+    setProgressFlag();
   }
 
   public boolean hasFetchPhase() {
@@ -210,6 +230,7 @@ public class Task implements Runnable {
     killed = true;
     context.stop();
     context.setStatus(QueryStatus.QUERY_KILLED);
+    setProgressFlag();
   }
 
   public void cleanUp() {
@@ -290,6 +311,7 @@ public class Task implements Runnable {
   public void run() {
     try {
       context.setStatus(QueryStatus.QUERY_INPROGRESS);
+      setProgressFlag();
       LOG.info("Query status of " + context.getTaskId() + " is changed to " +
           getStatus());
 
@@ -353,6 +375,8 @@ public class Task implements Runnable {
         LOG.info("Query status of " + context.getTaskId() + " is changed to "
             + QueryStatus.QUERY_FINISHED);
       }
+
+      setProgressFlag();
     }
   }
 

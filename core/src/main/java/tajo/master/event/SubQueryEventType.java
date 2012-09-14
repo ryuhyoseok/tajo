@@ -16,9 +16,18 @@
  * limitations under the License.
  */
 
-package tajo.engine.cluster.event;
+package tajo.master.event;
 
-public enum WorkerEventType {
-  ASSIGN,
-  COMMAND
+/**
+ * Event Types handled by SubQueryExecutor
+ */
+public enum SubQueryEventType {
+
+  // Producer:
+  SQ_INIT,
+  SQ_START,
+
+  // Producer: QueryUnit
+  SQ_TASK_COMPLETED,
+  SQ_ABORT
 }

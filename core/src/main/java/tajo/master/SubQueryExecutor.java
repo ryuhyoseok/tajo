@@ -61,6 +61,7 @@ import tajo.index.IndexUtil;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.master.SubQuery.PARTITION_TYPE;
+import tajo.master.event.SubQueryEvent;
 import tajo.storage.StorageManager;
 
 import java.io.IOException;
@@ -71,7 +72,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class SubQueryExecutor extends Thread {
+public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEvent> {
+
   private enum Status {
     INPROGRESS, FINISHED, ABORTED,
   }
@@ -121,6 +123,11 @@ public class SubQueryExecutor extends Thread {
     this.submitter = new QueryUnitSubmitter();
     this.id = masterPlan.getRoot().getId().getQueryId();
     this.sleeper = new Sleeper();
+  }
+
+  @Override
+  public void handle(SubQueryEvent subQueryEvent) {
+
   }
 
   @Override

@@ -24,9 +24,11 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.MapMaker;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.zookeeper.KeeperException;
 import tajo.NConstants;
 import tajo.engine.MasterWorkerProtos.*;
+import tajo.engine.cluster.event.WorkerEvent;
 import tajo.engine.exception.UnknownWorkerException;
 import tajo.ipc.AsyncWorkerCBProtocol;
 import tajo.ipc.AsyncWorkerProtocol;
@@ -42,7 +44,8 @@ import tajo.zookeeper.ZkUtil;
 import java.net.InetSocketAddress;
 import java.util.*;
 
-public class WorkerCommunicator extends ZkListener {
+public class WorkerCommunicator extends ZkListener
+    implements EventHandler<WorkerEvent> {
   private final Log LOG = LogFactory.getLog(WorkerTracker.class);
 
   private ZkClient zkClient;
@@ -183,5 +186,14 @@ public class WorkerCommunicator extends ZkListener {
   public void close() {
     this.zkClient.unsubscribe(this);
     this.zkClient.close();
+  }
+
+  @Override
+  public void handle(WorkerEvent event) {
+    switch (event.getType()) {
+      case ASSIGN:
+
+      case COMMAND:
+    }
   }
 }

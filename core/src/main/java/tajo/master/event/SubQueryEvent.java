@@ -16,9 +16,20 @@
  * limitations under the License.
  */
 
-package tajo.engine.cluster.event;
+package tajo.master.event;
 
-public enum WorkerEventType {
-  ASSIGN,
-  COMMAND
+import org.apache.hadoop.yarn.event.AbstractEvent;
+import tajo.SubQueryId;
+
+public class SubQueryEvent extends AbstractEvent<SubQueryEventType> {
+  private final SubQueryId id;
+
+  public SubQueryEvent(SubQueryId id, SubQueryEventType subQueryEventType) {
+    super(subQueryEventType);
+    this.id = id;
+  }
+
+  public SubQueryId getSubQueryId() {
+    return id;
+  }
 }

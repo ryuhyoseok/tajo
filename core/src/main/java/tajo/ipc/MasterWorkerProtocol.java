@@ -25,8 +25,5 @@ import tajo.engine.TCommonProtos.QueryUnitAttemptIdProto;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
 
 public interface MasterWorkerProtocol {
-
-  BoolProto ping(QueryUnitAttemptIdProto taskAttemptId);
-
   BoolProto statusUpdate(StatusReportProto status);
 }

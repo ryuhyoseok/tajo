@@ -21,6 +21,9 @@
 package tajo.master;
 
 import com.google.common.base.Preconditions;
+import org.apache.hadoop.yarn.state.MultipleArcTransition;
+import org.apache.hadoop.yarn.state.SingleArcTransition;
+import org.apache.hadoop.yarn.state.StateMachineFactory;
 import tajo.QueryUnitId;
 import tajo.SubQueryId;
 import tajo.catalog.Schema;
@@ -28,6 +31,8 @@ import tajo.catalog.statistics.TableStat;
 import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.engine.planner.global.QueryUnit;
 import tajo.engine.planner.logical.*;
+import tajo.master.event.SubQueryEvent;
+import tajo.master.event.SubQueryEventType;
 
 import java.util.*;
 
@@ -57,6 +62,22 @@ public class SubQuery extends AbstractQuery {
   private Priority priority;
   private TableStat stats;
   private QueryStatus status;
+
+  private StateMachineFactory<SubQueryExecutor, SubQueryStatus,
+      SubQueryEventType, SubQueryEvent> stateMachineFactory =
+      new StateMachineFactory <SubQueryExecutor, SubQueryStatus,
+          SubQueryEventType, SubQueryEvent> (SubQueryStatus.NEW)
+
+      .addTransition(SubQueryStatus.NEW, SubQueryStatus.RUNNING,
+          SubQueryEventType.SQ_START, new SubQueryStartTransition())
+      .addTransition(SubQueryStatus.RUNNING,
+          EnumSet.of(SubQueryStatus.RUNNING, SubQueryStatus.SUCCEEDED,
+              SubQueryStatus.FAILED),
+          SubQueryEventType.SQ_TASK_COMPLETED, new TaskCompletedTransition())
+      .addTransition(SubQueryStatus.RUNNING, SubQueryStatus.FAILED,
+          SubQueryEventType.SQ_ABORT, new InternalErrorTransition());
+
+
   
   public SubQuery(SubQueryId id) {
     this.id = id;
@@ -265,5 +286,35 @@ public class SubQuery extends AbstractQuery {
 
   public QueryStatus getStatus() {
     return this.status;
+  }
+
+  class SubQueryStartTransition implements
+      SingleArcTransition<SubQueryExecutor, SubQueryEvent> {
+
+    @Override
+    public void transition(SubQueryExecutor subQueryExecutor,
+                           SubQueryEvent subQueryEvent) {
+
+    }
+  }
+
+  class TaskCompletedTransition implements
+      MultipleArcTransition<SubQueryExecutor, SubQueryEvent, SubQueryStatus> {
+
+
+    @Override
+    public SubQueryStatus transition(SubQueryExecutor subQueryExecutor,
+                                     SubQueryEvent event) {
+      return null;
+    }
+  }
+
+  class InternalErrorTransition
+      implements SingleArcTransition<SubQueryExecutor, SubQueryEvent> {
+
+    @Override
+    public void transition(SubQueryExecutor subQueryExecutor,
+                           SubQueryEvent subQueryEvent) {
+    }
   }
 }

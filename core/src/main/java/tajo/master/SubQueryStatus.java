@@ -16,9 +16,11 @@
  * limitations under the License.
  */
 
-package tajo.engine.cluster.event;
+package tajo.master;
 
-public enum WorkerEventType {
-  ASSIGN,
-  COMMAND
+public enum SubQueryStatus {
+  NEW,
+  RUNNING,
+  SUCCEEDED,
+  FAILED
 }

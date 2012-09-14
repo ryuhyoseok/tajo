@@ -298,20 +298,23 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
     QueryStatus qs;
 
     for (Task task : tasks.values()) {
-      qs = task.getStatus();
-      if (qs == QueryStatus.QUERY_ABORTED
-          || qs == QueryStatus.QUERY_KILLED
-          || qs == QueryStatus.QUERY_FINISHED) {
-        // TODO - in-progress queries should be kept until this leafserver 
-        // ensures that this report is delivered.
-        tobeRemoved.add(task.getId());
+      if (task.getProgressFlag()) {
+        qs = task.getStatus();
+        if (qs == QueryStatus.QUERY_ABORTED
+            || qs == QueryStatus.QUERY_KILLED
+            || qs == QueryStatus.QUERY_FINISHED) {
+          // TODO - in-progress queries should be kept until this leafserver
+          // ensures that this report is delivered.
+          tobeRemoved.add(task.getId());
+        }
+
+        taskStatus = task.getReport();
+        task.resetProgressFlag();
+        report.addStatus(taskStatus);
+      } else {
+        report.addPings(task.getId().getProto());
       }
-
-      taskStatus = task.getReport();
-      list.add(taskStatus);
     }
-
-    report.addAllStatus(list);
 
     return master.statusUpdate(report.build()).getValue();
   }

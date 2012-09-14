@@ -18,7 +18,17 @@
 
 package tajo.engine.cluster.event;
 
-public enum WorkerEventType {
-  ASSIGN,
-  COMMAND
+import tajo.ipc.protocolrecords.QueryUnitRequest;
+
+public class WorkerAssignEvent extends WorkerEvent{
+  private final QueryUnitRequest request;
+  public WorkerAssignEvent(final String workerName,
+                           final QueryUnitRequest request) {
+    super(workerName, WorkerEventType.ASSIGN);
+    this.request = request;
+  }
+
+  public QueryUnitRequest getRequest() {
+    return request;
+  }
 }

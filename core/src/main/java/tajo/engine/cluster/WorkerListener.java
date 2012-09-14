@@ -56,8 +56,10 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
   private AtomicInteger processed;
   private Sleeper sleeper;
   private final EventHandler eventHandler;
+  private final QueryManager qm;
   
   public WorkerListener(final TajoConf conf, final TajoMaster master,
+                        final QueryManager qm,
                         final EventHandler eventHandler) {
     String confMasterAddr = conf.getVar(ConfVars.MASTER_ADDRESS);
     InetSocketAddress initIsa = NetUtils.createSocketAddr(confMasterAddr);
@@ -74,6 +76,7 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
     sleeper = new Sleeper();
     this.master = master;
     this.eventHandler = eventHandler;
+    this.qm = qm;
   }
   
   public InetSocketAddress getBindAddress() {
@@ -99,26 +102,21 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
 
     if (master.getClusterManager().getFailedWorkers().contains(
         proto.getServerName())) {
-      LOG.info("**** Dead man alive!!!!!!");
+      LOG.info("**** Dead man ( " + proto.getServerName() + ") alive!!!!!!");
     }
 
     StatusReport report = new StatusReportImpl(proto);
     for (TaskStatusProto status : report.getProgressList()) {
       QueryUnitAttemptId uid = new QueryUnitAttemptId(status.getId());
-      //qm.updateProgress(uid, status);
-
-      //QueryUnitAttempt attempt = qm.getQueryUnitAttempt(uid);
-      //attempt.updateProgress(status);
       eventHandler.handle(new TaskAttemptStatusUpdateEvent(uid, status));
       processed.incrementAndGet();
     }
 
-    return TRUE_PROTO;
-  }
+    for (QueryUnitAttemptIdProto pingId : report.getPingList()) {
+      QueryUnitAttemptId taskId = new QueryUnitAttemptId(pingId);
+      qm.getQueryUnitAttempt(taskId).resetExpireTime();
+    }
 
-  @Override
-  public BoolProto ping(QueryUnitAttemptIdProto taskId) {
-    LOG.info("Ping is Called!");
     return TRUE_PROTO;
   }
 
