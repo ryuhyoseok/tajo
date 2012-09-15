@@ -18,7 +18,6 @@
 
 package tajo.master.event;
 
-import tajo.QueryId;
 import tajo.SubQueryId;
 import tajo.master.SubQueryState;
 
@@ -28,7 +27,7 @@ public class SubQueryCompletedEvent extends QueryEvent {
 
   public SubQueryCompletedEvent(final SubQueryId subQueryId,
                                 SubQueryState finalState) {
-    super(subQueryId.getQueryId(), QueryEventType.QUERY_SUBQUERY_COMPLETED);
+    super(subQueryId.getQueryId(), QueryEventType.SUBQUERY_COMPLETED);
     this.subQueryId = subQueryId;
     this.finalState = finalState;
   }

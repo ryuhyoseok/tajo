@@ -31,8 +31,6 @@ import tajo.datum.DatumFactory;
 import tajo.engine.ClientServiceProtos.ExecuteQueryRequest;
 import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.engine.cluster.QueryManager;
-import tajo.engine.planner.global.QueryUnit;
-import tajo.engine.planner.global.QueryUnitAttempt;
 import tajo.storage.Appender;
 import tajo.storage.StorageManager;
 import tajo.storage.Tuple;
@@ -97,9 +95,6 @@ public class TestFaultTolerance {
     SubQuery subQuery = q.getSubQueryIterator().next();
     QueryUnit[] queryUnits = subQuery.getQueryUnits();
     for (QueryUnit queryUnit : queryUnits) {
-      QueryStatus queryUnitStatus =
-          queryUnit.getState();
-
       for (int i = 0; i <= queryUnit.getRetryCount(); i++) {
         QueryUnitAttempt attempt = queryUnit.getAttempt(i);
         if (i == queryUnit.getRetryCount()) {

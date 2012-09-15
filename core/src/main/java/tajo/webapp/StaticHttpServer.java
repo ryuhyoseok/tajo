@@ -8,7 +8,7 @@ import tajo.master.TajoMaster;
 
 import java.io.IOException;
 
-public class StaticHttpServer extends HttpServer{
+public class StaticHttpServer extends HttpServer {
   private static StaticHttpServer instance = null;
   private TajoMaster master = null;
   

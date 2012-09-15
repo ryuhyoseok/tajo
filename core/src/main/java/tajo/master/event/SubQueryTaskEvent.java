@@ -18,9 +18,20 @@
 
 package tajo.master.event;
 
-public enum QueryEventType {
-  INIT,
-  START,
-  INTERNAL_ERROR,
-  SUBQUERY_COMPLETED
+import tajo.QueryUnitId;
+
+/**
+ * Event Class: From Task to SubQuery
+ */
+public class SubQueryTaskEvent extends SubQueryEvent {
+  private QueryUnitId taskId;
+  public SubQueryTaskEvent(QueryUnitId taskId,
+                           SubQueryEventType subQueryEventType) {
+    super(taskId.getSubQueryId(), subQueryEventType);
+    this.taskId = taskId;
+  }
+
+  public QueryUnitId getTaskId() {
+    return this.taskId;
+  }
 }

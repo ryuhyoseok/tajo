@@ -26,20 +26,13 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
-import org.apache.hadoop.yarn.state.SingleArcTransition;
-import org.apache.hadoop.yarn.state.StateMachine;
-import org.apache.hadoop.yarn.state.StateMachineFactory;
+import org.apache.hadoop.yarn.state.*;
 import tajo.QueryId;
 import tajo.QueryUnitId;
 import tajo.SubQueryId;
 import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.engine.planner.global.MasterPlan;
-import tajo.engine.planner.global.QueryUnit;
-import tajo.master.event.QueryEvent;
-import tajo.master.event.QueryEventType;
-import tajo.master.event.SubQueryEvent;
-import tajo.master.event.SubQueryEventType;
+import tajo.master.event.*;
 import tajo.storage.StorageManager;
 
 import java.io.IOException;
@@ -48,7 +41,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class Query extends AbstractQuery implements EventHandler<QueryEvent> {
+public class Query implements EventHandler<QueryEvent> {
   private static final Log LOG = LogFactory.getLog(Query.class);
 
   private final QueryId id;
@@ -56,22 +49,32 @@ public class Query extends AbstractQuery implements EventHandler<QueryEvent> {
   private Map<SubQueryId, SubQuery> subqueries;
   private QueryStatus status;
   private final EventHandler eventHandler;
-  private final StateMachine<QueryStatus, QueryEventType, QueryEvent> stateMachine;
+  private final StateMachine<QueryState, QueryEventType, QueryEvent> stateMachine;
   private final MasterPlan plan;
   private final StorageManager sm;
 
   private final Lock readLock;
   private final Lock writeLock;
 
-  private static final StateMachineFactory
-      <Query,QueryStatus,QueryEventType,QueryEvent> stateMachineFactory =
-      new StateMachineFactory<Query, QueryStatus, QueryEventType, QueryEvent>
-          (QueryStatus.QUERY_NEW)
+  private int completedSubQueryCount = 0;
 
-      .addTransition(QueryStatus.QUERY_NEW, QueryStatus.QUERY_INITED,
-          QueryEventType.QUERY_INIT, new InitTransition())
-      .addTransition(QueryStatus.QUERY_INITED, QueryStatus.QUERY_INPROGRESS,
-          QueryEventType.QUERY_START, new StartTransition());
+  private static final StateMachineFactory
+      <Query,QueryState,QueryEventType,QueryEvent> stateMachineFactory =
+      new StateMachineFactory<Query, QueryState, QueryEventType, QueryEvent>
+          (QueryState.NEW)
+
+      .addTransition(QueryState.NEW, QueryState.INIT,
+          QueryEventType.INIT, new InitTransition())
+
+      .addTransition(QueryState.INIT, QueryState.RUNNING,
+          QueryEventType.START, new StartTransition())
+
+      .addTransition(QueryState.RUNNING,
+          EnumSet.of(QueryState.RUNNING, QueryState.SUCCEEDED, QueryState.FAILED),
+          QueryEventType.SUBQUERY_COMPLETED,
+          new SubQueryCompletedTransition())
+
+      .installTopology();
 
   private PriorityQueue<SubQuery> scheduleQueue;
 
@@ -119,7 +122,7 @@ public class Query extends AbstractQuery implements EventHandler<QueryEvent> {
     return plan;
   }
 
-  public StateMachine<QueryStatus, QueryEventType, QueryEvent> getStateMachine() {
+  public StateMachine<QueryState, QueryEventType, QueryEvent> getStateMachine() {
     return stateMachine;
   }
   
@@ -151,8 +154,13 @@ public class Query extends AbstractQuery implements EventHandler<QueryEvent> {
     return this.getSubQuery(id.getSubQueryId()).getQueryUnit(id);
   }
 
-  public QueryStatus getState() {
-    return this.status;
+  public QueryState getState() {
+    readLock.lock();
+    try {
+      return stateMachine.getCurrentState();
+    } finally {
+      readLock.unlock();
+    }
   }
 
   public void setState(QueryStatus status) {
@@ -214,12 +222,31 @@ public class Query extends AbstractQuery implements EventHandler<QueryEvent> {
     }
   }
 
+  public static class SubQueryCompletedTransition implements
+    MultipleArcTransition<Query, QueryEvent, QueryState> {
+
+    @Override
+    public QueryState transition(Query query, QueryEvent event) {
+      query.completedSubQueryCount++;
+
+      return query.checkQueryForCompleted();
+    }
+  }
+
+  QueryState checkQueryForCompleted() {
+    if (completedSubQueryCount == subqueries.size()) {
+      return QueryState.SUCCEEDED;
+    }
+    return getState();
+  }
+
+
   @Override
   public void handle(QueryEvent event) {
     LOG.info("Processing " + event.getQueryId() + " of type " + event.getType());
     try {
     writeLock.lock();
-    QueryStatus oldState = getState();
+    QueryState oldState = getState();
       try {
         getStateMachine().doTransition(event.getType(), event);
       } catch (InvalidStateTransitonException e) {

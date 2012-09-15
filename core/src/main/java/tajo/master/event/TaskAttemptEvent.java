@@ -18,9 +18,19 @@
 
 package tajo.master.event;
 
-public enum QueryEventType {
-  INIT,
-  START,
-  INTERNAL_ERROR,
-  SUBQUERY_COMPLETED
+import org.apache.hadoop.yarn.event.AbstractEvent;
+import tajo.QueryUnitAttemptId;
+
+public class TaskAttemptEvent extends AbstractEvent<TaskAttemptEventType> {
+  private final QueryUnitAttemptId id;
+
+  public TaskAttemptEvent(QueryUnitAttemptId id,
+                          TaskAttemptEventType taskAttemptEventType) {
+    super(taskAttemptEventType);
+    this.id = id;
+  }
+
+  public QueryUnitAttemptId getTaskAttemptId() {
+    return this.id;
+  }
 }

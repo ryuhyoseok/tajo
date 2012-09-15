@@ -16,11 +16,8 @@
  * limitations under the License.
  */
 
-package tajo.master.event;
+package tajo.master;
 
-public enum QueryEventType {
-  INIT,
-  START,
-  INTERNAL_ERROR,
-  SUBQUERY_COMPLETED
+public enum TaskState {
+  NEW, SCHEDULED, RUNNING, SUCCEEDED, FAILED, KILL_WAIT, KILLED;
 }

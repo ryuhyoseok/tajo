@@ -30,18 +30,16 @@ import tajo.catalog.proto.CatalogProtos.StoreType;
 import tajo.conf.TajoConf;
 import tajo.datum.Datum;
 import tajo.datum.DatumFactory;
-import tajo.engine.cluster.ClusterManager;
 import tajo.engine.parser.QueryAnalyzer;
 import tajo.engine.planner.LogicalOptimizer;
 import tajo.engine.planner.LogicalPlanner;
 import tajo.engine.planner.PlanningContext;
-import tajo.engine.planner.global.QueryUnit;
-import tajo.engine.planner.global.QueryUnitAttempt;
+import tajo.master.QueryUnit;
+import tajo.master.QueryUnitAttempt;
 import tajo.engine.planner.logical.LogicalNode;
 import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
-import tajo.master.GlobalEngine;
 import tajo.master.Query;
 import tajo.master.SubQuery;
 import tajo.storage.Appender;
@@ -113,9 +111,6 @@ public class TestTajoTestingUtility {
 
   @Test
   public final void test() throws Exception {
-    ClusterManager cm = util.getMiniTajoCluster().getMaster().getClusterManager();
-    GlobalEngine ge = util.getMiniTajoCluster().getMaster().getGlobalEngine();
-
     AsyncDispatcher dispatcher = new AsyncDispatcher();
     dispatcher.start();
 
@@ -127,7 +122,7 @@ public class TestTajoTestingUtility {
     Query query = new Query(queryId,
         "testNtaTestingUtil := select deptName, sleep(name) from employee group by deptName",
         dispatcher.getEventHandler(), null, null, sm);
-    SubQuery subQuery = new SubQuery(subQueryId, dispatcher.getEventHandler(), sm, null, cm);
+    SubQuery subQuery = new SubQuery(subQueryId, dispatcher.getEventHandler(), sm, null);
     query.addSubQuery(subQuery);
     util.getMiniTajoCluster().getMaster().getQueryManager().addQuery(query);
 
@@ -146,7 +141,7 @@ public class TestTajoTestingUtility {
           "testNtaTestingUtil := select deptName, sleep(name) from employee group by deptName");
       plan = planner.createPlan(context);
       plan = LogicalOptimizer.optimize(context, plan);
-      QueryUnit unit = new QueryUnit(qid);
+      QueryUnit unit = new QueryUnit(qid, dispatcher.getEventHandler());
       queryUnits.add(unit);
       QueryUnitAttempt attempt = unit.newAttempt();
       req = new QueryUnitRequestImpl(

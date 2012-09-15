@@ -487,7 +487,6 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
       switch (cmd.getType()) {
       case FINALIZE:
         if (status == QueryStatus.QUERY_FINISHED
-        || status == QueryStatus.QUERY_DATASERVER
         || status == QueryStatus.QUERY_ABORTED
         || status == QueryStatus.QUERY_KILLED) {
           task.cleanUp();

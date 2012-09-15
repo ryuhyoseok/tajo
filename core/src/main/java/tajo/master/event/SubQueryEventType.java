@@ -23,13 +23,16 @@ package tajo.master.event;
  */
 public enum SubQueryEventType {
 
-  // Producer:
+  // Producer: Query
   SQ_INIT,
   SQ_START,
 
   // Producer: QueryUnit
   SQ_TASK_COMPLETED,
   SQ_ABORT,
+
+  // Producer: Completed
+  SQ_SUBQUERY_COMPLETED,
 
   SQ_INTERNAL_ERROR
 }

@@ -22,6 +22,9 @@ package tajo.master;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.event.EventHandler;
 import tajo.QueryId;
 import tajo.QueryIdFactory;
@@ -34,7 +37,6 @@ import tajo.conf.TajoConf;
 import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.engine.cluster.ClusterManager;
 import tajo.engine.cluster.QueryManager;
-import tajo.engine.cluster.WorkerCommunicator;
 import tajo.engine.exception.EmptyClusterException;
 import tajo.engine.exception.IllegalQueryStatusException;
 import tajo.engine.exception.NoSuchQueryIdException;
@@ -46,8 +48,10 @@ import tajo.engine.planner.PlanningContext;
 import tajo.engine.planner.global.GlobalOptimizer;
 import tajo.engine.planner.global.MasterPlan;
 import tajo.engine.planner.logical.*;
+import tajo.master.TajoMaster.MasterContext;
 import tajo.master.event.QueryEvent;
 import tajo.master.event.QueryEventType;
+import tajo.master.event.QueryState;
 import tajo.storage.StorageManager;
 import tajo.storage.StorageUtil;
 
@@ -56,27 +60,26 @@ import java.io.IOException;
 public class GlobalEngine implements EngineService {
   private final static Log LOG = LogFactory.getLog(GlobalEngine.class);
 
+  private final MasterContext context;
   private final TajoConf conf;
   private final CatalogService catalog;
   private final StorageManager sm;
 
-  private WorkerCommunicator wc;
   private QueryManager qm;
   private ClusterManager cm;
 
   private final EventHandler eventHandler;
 
-  public GlobalEngine(final TajoConf conf, final CatalogService cat,
-                      final StorageManager sm, final WorkerCommunicator wc,
-                      final QueryManager qm, final ClusterManager cm,
-                      final EventHandler eventHandler) throws IOException {
-    this.conf = conf;
-    this.catalog = cat;
-    this.wc = wc;
+  public GlobalEngine(final MasterContext context,
+                      final QueryManager qm, final StorageManager sm)
+      throws IOException {
+    this.context = context;
+    this.conf = context.getConf();
+    this.catalog = context.getCatalog();
     this.qm = qm;
     this.sm = sm;
-    this.cm = cm;
-    this.eventHandler = eventHandler;
+    this.cm = context.getClusterManager();
+    this.eventHandler = context.getEventHandler();
   }
 
   private LogicalNode buildLogicalPlan(PlanningContext context) throws IOException {
@@ -125,8 +128,8 @@ public class GlobalEngine implements EngineService {
       UnknownWorkerException, EmptyClusterException {
     LOG.info("* issued query: " + tql);
     QueryAnalyzer analyzer = new QueryAnalyzer(catalog);
-    PlanningContext context = analyzer.parse(tql);
-    LogicalRootNode plan = (LogicalRootNode) buildLogicalPlan(context);
+    PlanningContext planningContext = analyzer.parse(tql);
+    LogicalRootNode plan = (LogicalRootNode) buildLogicalPlan(planningContext);
 
     if (plan.getSubNode().getType() == ExprType.CREATE_TABLE) {
       return executeCreateTable(plan);
@@ -136,11 +139,9 @@ public class GlobalEngine implements EngineService {
         hasStoreNode = true;
       }
       // other queries are executed by workers
-      updateFragmentServingInfo(context);
+      updateFragmentServingInfo(planningContext);
 
       QueryId queryId = QueryIdFactory.newQueryId();
-
-
       // build the master plan
       GlobalPlanner globalPlanner =
           new GlobalPlanner(conf, this.sm, this.qm, this.catalog, eventHandler, cm);
@@ -148,13 +149,12 @@ public class GlobalEngine implements EngineService {
       MasterPlan globalPlan = globalPlanner.build(queryId, plan);
       globalPlan = globalOptimizer.optimize(globalPlan.getRoot());
 
-      QueryId qid = QueryIdFactory.newQueryId();
-      Query query = new Query(qid, tql, eventHandler, globalPlanner, globalPlan, sm);
-      qm.addQuery(query);
+      Query query = new Query(queryId, tql, eventHandler, globalPlanner, globalPlan, sm);
+      context.getAllQueries().put(queryId, query);
       eventHandler.handle(new QueryEvent(query.getId(),
-          QueryEventType.QUERY_INIT));
+          QueryEventType.INIT));
 
-      eventHandler.handle(new QueryEvent(query.getId(), QueryEventType.QUERY_START));
+      eventHandler.handle(new QueryEvent(query.getId(), QueryEventType.START));
 
 //      query.setState(QueryStatus.QUERY_INPROGRESS);
 //      SubQueryExecutor executor = new SubQueryExecutor(conf,
@@ -165,9 +165,9 @@ public class GlobalEngine implements EngineService {
       //finalizeQuery(query);
 
       while(true) {
-        if (query.getState() == QueryStatus.QUERY_FINISHED
-          || query.getState() == QueryStatus.QUERY_ABORTED
-          || query.getState() == QueryStatus.QUERY_KILLED) {
+        if (query.getState() == QueryState.SUCCEEDED
+          || query.getState() == QueryState.FAILED
+          || query.getState() == QueryState.KILLED) {
           break;
         }
 
@@ -183,7 +183,14 @@ public class GlobalEngine implements EngineService {
         catalog.addTable(desc);
       }
 
-      return sm.getTablePath(globalPlan.getRoot().getOutputName()).toString();
+      String outDir = sm.getTablePath(globalPlan.getRoot().getOutputName()).toString();
+
+      FileSystem fs = FileSystem.get(conf);
+      LOG.info(fs.exists(new Path(outDir)));
+      for (FileStatus status : fs.listStatus(new Path(outDir, "data"))) {
+        System.out.println(status.getPath() + " " + status.getLen());
+      }
+      return outDir;
     }
   }
 

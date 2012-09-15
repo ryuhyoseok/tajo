@@ -21,6 +21,8 @@
 package tajo.master;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
@@ -29,18 +31,19 @@ import org.apache.hadoop.yarn.state.*;
 import tajo.QueryUnitId;
 import tajo.SubQueryId;
 import tajo.catalog.Schema;
+import tajo.catalog.TCatUtil;
+import tajo.catalog.TableMeta;
+import tajo.catalog.proto.CatalogProtos.StoreType;
+import tajo.catalog.statistics.StatisticsUtil;
 import tajo.catalog.statistics.TableStat;
-import tajo.engine.cluster.ClusterManager;
-import tajo.engine.planner.PlannerUtil;
-import tajo.engine.planner.global.QueryUnit;
+import tajo.engine.MasterWorkerProtos.CommandType;
+import tajo.engine.json.GsonCreator;
 import tajo.engine.planner.logical.*;
-import tajo.master.event.SubQueryCompletedEvent;
-import tajo.master.event.SubQueryEvent;
-import tajo.master.event.SubQueryEventType;
+import tajo.index.IndexUtil;
+import tajo.master.event.*;
 import tajo.storage.StorageManager;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -76,7 +79,8 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
   private final EventHandler eventHandler;
   private final StorageManager sm;
   private final GlobalPlanner planner;
-  private final ClusterManager cm;
+
+  volatile Map<QueryUnitId, QueryUnit> tasks = Maps.newLinkedHashMap();
 
   private StateMachine<SubQueryState, SubQueryEventType, SubQueryEvent> stateMachine;
 
@@ -92,19 +96,22 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
       .addTransition(SubQueryState.INIT, SubQueryState.RUNNING,
           SubQueryEventType.SQ_START, new StartTransition())
 
-      .addTransition(SubQueryState.RUNNING,
-          EnumSet.of(SubQueryState.RUNNING, SubQueryState.SUCCEEDED,
-              SubQueryState.FAILED),
+      .addTransition(SubQueryState.RUNNING, SubQueryState.RUNNING,
           SubQueryEventType.SQ_TASK_COMPLETED, new TaskCompletedTransition())
+
+      .addTransition(SubQueryState.RUNNING, SubQueryState.SUCCEEDED,
+          SubQueryEventType.SQ_SUBQUERY_COMPLETED, new SubQueryCompleteTransition())
 
       .addTransition(SubQueryState.RUNNING, SubQueryState.FAILED,
           SubQueryEventType.SQ_ABORT, new InternalErrorTransition());
 
   private final Lock readLock;
   private final Lock writeLock;
+
+  private int completedTaskCount = 0;
   
   public SubQuery(SubQueryId id, EventHandler eventHandler, StorageManager sm,
-                  GlobalPlanner planner, ClusterManager cm) {
+                  GlobalPlanner planner) {
     this.id = id;
     prevs = new HashMap<ScanNode, SubQuery>();
     scanlist = new ArrayList<ScanNode>();
@@ -113,7 +120,6 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
     this.eventHandler = eventHandler;
     this.sm = sm;
     this.planner = planner;
-    this.cm = cm;
 
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     this.readLock = readWriteLock.readLock();
@@ -121,6 +127,10 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
 
 
     stateMachine = stateMachineFactory.make(this);
+  }
+
+  public void addTask(QueryUnit task) {
+    tasks.put(task.getId(), task);
   }
   
   public void setOutputType(PARTITION_TYPE type) {
@@ -130,11 +140,6 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
   public GlobalPlanner getPlanner() {
     return planner;
   }
-
-  public ClusterManager getClusterManager() {
-    return cm;
-  }
-
   
   public void setLogicalPlan(LogicalNode plan) {
     hasJoinPlan = false;
@@ -344,7 +349,12 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
   }
 
   public SubQueryState getState() {
-    return this.stateMachine.getCurrentState();
+    readLock.lock();
+    try {
+      return stateMachine.getCurrentState();
+    } finally {
+      readLock.unlock();
+    }
   }
 
   static class InitTransition implements
@@ -357,9 +367,14 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
         initOutputDir(subQuery.getStorageManager(), subQuery.getOutputName(),
             subQuery.getOutputType());
 
-        int numTasks = getTaskNum(subQuery);
-        QueryUnit[] units = subQuery.getPlanner().localize(subQuery, numTasks);
-        LOG.info("Create " + units.length + " Tasks");
+        int numTasks = subQuery.getPlanner().getTaskNum(subQuery);
+        QueryUnit[] tasks = subQuery.getPlanner().localize(subQuery, numTasks);
+
+        for (QueryUnit task : tasks) {
+          subQuery.addTask(task);
+        }
+        LOG.info("Create " + tasks.length + " Tasks");
+
         return  SubQueryState.INIT;
       } catch (Exception e) {
         LOG.warn("SubQuery (" + subQuery.getId() + ") failed", e);
@@ -387,19 +402,6 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
           }
       }
     }
-
-    private int getTaskNum(SubQuery subQuery) {
-      int numTasks;
-      GroupbyNode grpNode = (GroupbyNode) PlannerUtil.findTopNode(
-          subQuery.getLogicalPlan(), ExprType.GROUP_BY);
-      if (subQuery.getParentQuery() == null && grpNode != null
-          && grpNode.getGroupingColumns().length == 0) {
-        numTasks = 1;
-      } else {
-        numTasks = subQuery.getClusterManager().getOnlineWorkers().size();
-      }
-      return numTasks;
-    }
   }
 
 
@@ -410,19 +412,58 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
     @Override
     public void transition(SubQuery subQuery,
                            SubQueryEvent subQueryEvent) {
-
+      for (QueryUnitId taskId : subQuery.tasks.keySet()) {
+        eventHandler.handle(new TaskEvent(taskId, TaskEventType.T_SCHEDULE));
+      }
     }
   }
 
-  class TaskCompletedTransition implements
-      MultipleArcTransition<SubQuery, SubQueryEvent, SubQueryState> {
+  private class TaskCompletedTransition implements
+      SingleArcTransition<SubQuery, SubQueryEvent> {
 
 
     @Override
-    public SubQueryState transition(SubQuery subQuery,
+    public void transition(SubQuery subQuery,
                                      SubQueryEvent event) {
-      return null;
+      subQuery.completedTaskCount++;
+//      SubQueryTaskEvent taskEvent = (SubQueryTaskEvent) event;
+//      QueryUnit task = subQuery.getQueryUnit(taskEvent.getTaskId());
+
+      if (subQuery.completedTaskCount == subQuery.tasks.size()) {
+        subQuery.eventHandler.handle(new SubQueryEvent(subQuery.getId(),
+            SubQueryEventType.SQ_SUBQUERY_COMPLETED));
+      }
     }
+
+  }
+
+  private static class SubQueryCompleteTransition
+      implements SingleArcTransition<SubQuery, SubQueryEvent> {
+
+    @Override
+    public void transition(SubQuery subQuery, SubQueryEvent subQueryEvent) {
+      // TODO - Commit subQuery & do cleanup
+      // TODO - records succeeded, failed, killed completed task
+      // TODO - records metrics
+
+      TableStat stat = subQuery.generateStat(subQuery);
+      try {
+        subQuery.writeStat(subQuery, stat);
+      } catch (IOException e) {
+      }
+      subQuery.setStats(stat);
+
+      for (QueryUnit unit : subQuery.getQueryUnits()) {
+        //sendCommand(unit.getLastAttempt(), CommandType.FINALIZE);
+      }
+      subQuery.eventHandler.handle(new QuerySubQueryEvent(subQuery.getId(),
+          QueryEventType.SUBQUERY_COMPLETED));
+    }
+  }
+
+  SubQueryState finished(SubQueryState state) {
+    // TODO - record the state to metric
+    return state;
   }
 
   class InternalErrorTransition
@@ -431,6 +472,56 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
     @Override
     public void transition(SubQuery subQuery,
                            SubQueryEvent subQueryEvent) {
+    }
+  }
+
+  private TableStat generateStat(SubQuery subQuery) {
+    List<TableStat> stats = Lists.newArrayList();
+    for (QueryUnit unit : subQuery.getQueryUnits()) {
+      stats.add(unit.getStats());
+    }
+    TableStat tableStat = StatisticsUtil.aggregateTableStat(stats);
+    return tableStat;
+  }
+
+  private void writeStat(SubQuery subQuery, TableStat stat)
+      throws IOException {
+
+    if (subQuery.getLogicalPlan().getType() == ExprType.CREATE_INDEX) {
+      IndexWriteNode index = (IndexWriteNode) subQuery.getLogicalPlan();
+      Path indexPath = new Path(sm.getTablePath(index.getTableName()), "index");
+      TableMeta meta;
+      if (sm.getFileSystem().exists(new Path(indexPath, ".meta"))) {
+        meta = sm.getTableMeta(indexPath);
+      } else {
+        meta = TCatUtil
+            .newTableMeta(subQuery.getOutputSchema(), StoreType.CSV);
+      }
+      String indexName = IndexUtil.getIndexName(index.getTableName(),
+          index.getSortSpecs());
+      String json = GsonCreator.getInstance().toJson(index.getSortSpecs());
+      meta.putOption(indexName, json);
+
+      sm.writeTableMeta(indexPath, meta);
+
+    } else {
+      TableMeta meta = TCatUtil.newTableMeta(subQuery.getOutputSchema(),
+          StoreType.CSV);
+      meta.setStat(stat);
+      sm.writeTableMeta(sm.getTablePath(subQuery.getOutputName()), meta);
+    }
+  }
+
+  private void finalizePrevSubQuery(SubQuery subQuery)
+      throws Exception {
+    SubQuery prevSubQuery;
+    for (ScanNode scan : subQuery.getScanNodes()) {
+      prevSubQuery = subQuery.getChildQuery(scan);
+      if (prevSubQuery.getStoreTableNode().getSubNode().getType() != ExprType.UNION) {
+        for (QueryUnit unit : prevSubQuery.getQueryUnits()) {
+          //sendCommand(unit.getLastAttempt(), CommandType.FINALIZE);
+        }
+      }
     }
   }
 

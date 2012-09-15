@@ -16,21 +16,37 @@
  * limitations under the License.
  */
 
-package tajo.engine.planner.global.event;
+package tajo.master.event;
 
-import tajo.QueryUnitAttemptId;
-import tajo.engine.MasterWorkerProtos.TaskStatusProto;
+/**
+ * Event types handled by TaskAttempt.
+ */
+public enum TaskAttemptEventType {
 
-public class TaskAttemptStatusUpdateEvent extends TaskAttemptEvent {
-  private final TaskStatusProto status;
+  //Producer:Task
+  TA_SCHEDULE,
+  TA_RESCHEDULE,
 
-  public TaskAttemptStatusUpdateEvent(final QueryUnitAttemptId id,
-                                      TaskStatusProto status) {
-    super(id, TaskAttemptEventType.TA_UPDATE);
-    this.status = status;
-  }
+  //Producer:Client, Task
+  TA_KILL,
 
-  public TaskStatusProto getStatus() {
-    return status;
-  }
+  //Producer:Scheduler
+  TA_ASSIGNED,
+
+  //Producer:Scheduler
+  TA_LAUNCHED,
+
+  //Producer:TaskAttemptListener
+  TA_DIAGNOSTICS_UPDATE,
+  TA_COMMIT_PENDING,
+  TA_DONE,
+  TA_FAILMSG,
+  TA_UPDATE,
+  TA_TIMED_OUT,
+
+  //Producer:TaskCleaner
+  TA_CLEANUP_DONE,
+
+  //Producer:Job
+  TA_TOO_MANY_FETCH_FAILURE,
 }

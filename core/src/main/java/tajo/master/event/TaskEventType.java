@@ -16,22 +16,23 @@
  * limitations under the License.
  */
 
-package tajo.engine.planner.global.event;
+package tajo.master.event;
 
-import org.apache.hadoop.yarn.event.AbstractEvent;
-import tajo.QueryUnitAttemptId;
+/**
+ * Event types handled by Task.
+ */
+public enum TaskEventType {
 
-public class TaskAttemptEvent
-    extends AbstractEvent<TaskAttemptEventType> {
-  private QueryUnitAttemptId attemptId;
+  //Producer:Client, SubQuery
+  T_KILL,
 
-  public TaskAttemptEvent(final QueryUnitAttemptId id,
-                          TaskAttemptEventType taskAttemptEventType) {
-    super(taskAttemptEventType);
-    this.attemptId = id;
-  }
+  //Producer:SubQuery
+  T_SCHEDULE,
 
-  public QueryUnitAttemptId getTaskAttemptId() {
-    return attemptId;
-  }
+  //Producer:TaskAttempt
+  T_ATTEMPT_LAUNCHED,
+  T_ATTEMPT_COMMIT_PENDING,
+  T_ATTEMPT_FAILED,
+  T_ATTEMPT_SUCCEEDED,
+  T_ATTEMPT_KILLED
 }

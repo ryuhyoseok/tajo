@@ -27,7 +27,6 @@ import tajo.catalog.*;
 import tajo.catalog.proto.CatalogProtos.StoreType;
 import tajo.engine.eval.EvalNode;
 import tajo.engine.parser.QueryBlock;
-import tajo.engine.planner.global.QueryUnit;
 import tajo.engine.planner.logical.GroupbyNode;
 import tajo.engine.planner.logical.ScanNode;
 import tajo.engine.planner.logical.StoreTableNode;

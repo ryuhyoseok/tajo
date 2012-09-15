@@ -32,8 +32,8 @@ import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.MasterWorkerProtos.StatusReportProto;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.engine.TCommonProtos.QueryUnitAttemptIdProto;
-import tajo.engine.planner.global.QueryUnitAttempt;
-import tajo.engine.planner.global.event.TaskAttemptStatusUpdateEvent;
+import tajo.master.TajoMaster.MasterContext;
+import tajo.master.event.TaskAttemptStatusUpdateEvent;
 import tajo.engine.query.StatusReportImpl;
 import tajo.ipc.MasterWorkerProtocol;
 import tajo.ipc.StatusReport;
@@ -48,20 +48,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class WorkerListener extends Thread implements MasterWorkerProtocol {
   
   private final static Log LOG = LogFactory.getLog(WorkerListener.class);
+  private MasterContext context;
   private final NettyRpcServer rpcServer;
   private InetSocketAddress bindAddr;
   private String addr;
   private volatile boolean stopped = false;
-  private TajoMaster master;
   private AtomicInteger processed;
   private Sleeper sleeper;
-  private final EventHandler eventHandler;
-  private final QueryManager qm;
   
-  public WorkerListener(final TajoConf conf, final TajoMaster master,
-                        final QueryManager qm,
-                        final EventHandler eventHandler) {
-    String confMasterAddr = conf.getVar(ConfVars.MASTER_ADDRESS);
+  public WorkerListener(final MasterContext context) {
+    this.context = context;
+
+    String confMasterAddr = context.getConf().getVar(ConfVars.MASTER_ADDRESS);
     InetSocketAddress initIsa = NetUtils.createSocketAddr(confMasterAddr);
     if (initIsa.getAddress() == null) {
       throw new IllegalArgumentException("Failed resolve of " + initIsa);
@@ -74,9 +72,6 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
     this.addr = bindAddr.getHostName() + ":" + bindAddr.getPort();
     processed = new AtomicInteger(0);
     sleeper = new Sleeper();
-    this.master = master;
-    this.eventHandler = eventHandler;
-    this.qm = qm;
   }
   
   public InetSocketAddress getBindAddress() {
@@ -100,7 +95,7 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
   @Override
   public BoolProto statusUpdate(StatusReportProto proto) {
 
-    if (master.getClusterManager().getFailedWorkers().contains(
+    if (context.getClusterManager().getFailedWorkers().contains(
         proto.getServerName())) {
       LOG.info("**** Dead man ( " + proto.getServerName() + ") alive!!!!!!");
     }
@@ -108,13 +103,14 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
     StatusReport report = new StatusReportImpl(proto);
     for (TaskStatusProto status : report.getProgressList()) {
       QueryUnitAttemptId uid = new QueryUnitAttemptId(status.getId());
-      eventHandler.handle(new TaskAttemptStatusUpdateEvent(uid, status));
+      context.getEventHandler().handle(new TaskAttemptStatusUpdateEvent(uid, status));
       processed.incrementAndGet();
     }
 
     for (QueryUnitAttemptIdProto pingId : report.getPingList()) {
       QueryUnitAttemptId taskId = new QueryUnitAttemptId(pingId);
-      qm.getQueryUnitAttempt(taskId).resetExpireTime();
+      context.getQuery(taskId.getQueryId()).getSubQuery(taskId.getSubQueryId()).
+          getQueryUnit(taskId.getQueryUnitId()).getAttempt(taskId).resetExpireTime();
     }
 
     return TRUE_PROTO;

@@ -51,7 +51,6 @@ import tajo.engine.planner.PlannerUtil;
 import tajo.engine.planner.RangePartitionAlgorithm;
 import tajo.engine.planner.UniformRangePartition;
 import tajo.engine.planner.global.MasterPlan;
-import tajo.engine.planner.global.QueryUnit;
 import tajo.master.SubQuery.PARTITION_TYPE;
 import tajo.engine.planner.logical.*;
 import tajo.engine.utils.TupleUtil;
@@ -135,6 +134,19 @@ public class GlobalPlanner {
     store.setLocal(true);
     PlannerUtil.insertNode(parent, store);
     return store;
+  }
+
+  public int getTaskNum(SubQuery subQuery) {
+    int numTasks;
+    GroupbyNode grpNode = (GroupbyNode) PlannerUtil.findTopNode(
+        subQuery.getLogicalPlan(), ExprType.GROUP_BY);
+    if (subQuery.getParentQuery() == null && grpNode != null
+        && grpNode.getGroupingColumns().length == 0) {
+      numTasks = 1;
+    } else {
+      numTasks = cm.getOnlineWorkers().size();
+    }
+    return numTasks;
   }
   
   /**
@@ -328,7 +340,7 @@ public class GlobalPlanner {
         } else {
           id = QueryIdFactory.newSubQueryId(subId);
         }
-        unit = new SubQuery(id, eventHandler, sm, this, cm);
+        unit = new SubQuery(id, eventHandler, sm, this);
 
         switch (store.getSubNode().getType()) {
         case BST_INDEX_SCAN:
@@ -719,7 +731,7 @@ public class GlobalPlanner {
         getStoreTableNode().getSubNode();
     SubQuery newPhaseGroupby = new SubQuery(
         QueryIdFactory.newSubQueryId(
-            firstPhaseGroupby.getId().getQueryId()), eventHandler, sm, this, cm);
+            firstPhaseGroupby.getId().getQueryId()), eventHandler, sm, this);
     LogicalNode tmp = PlannerUtil.findTopParentNode(
         firstPhaseGroupby.getLogicalPlan(), ExprType.GROUP_BY);
     GroupbyNode firstGroupby = null;
@@ -806,7 +818,7 @@ public class GlobalPlanner {
     
     if (index != null) {
       SubQueryId id = QueryIdFactory.newSubQueryId(subId);
-      SubQuery unit = new SubQuery(id, eventHandler, sm, this, cm);
+      SubQuery unit = new SubQuery(id, eventHandler, sm, this);
       root = makeScanUnit(unit);
       root.setLogicalPlan(index);
     } else {
@@ -1210,9 +1222,8 @@ public class GlobalPlanner {
   
   private QueryUnit newQueryUnit(SubQuery subQuery) {
     QueryUnit unit = new QueryUnit(
-        QueryIdFactory.newQueryUnitId(subQuery.getId()));
+        QueryIdFactory.newQueryUnitId(subQuery.getId()), eventHandler);
     unit.setLogicalPlan(subQuery.getLogicalPlan());
-    unit.setState(QueryStatus.QUERY_NEW);
     return unit;
   }
   

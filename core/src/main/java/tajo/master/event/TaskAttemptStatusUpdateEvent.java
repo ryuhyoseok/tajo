@@ -18,9 +18,19 @@
 
 package tajo.master.event;
 
-public enum QueryEventType {
-  INIT,
-  START,
-  INTERNAL_ERROR,
-  SUBQUERY_COMPLETED
+import tajo.QueryUnitAttemptId;
+import tajo.engine.MasterWorkerProtos.TaskStatusProto;
+
+public class TaskAttemptStatusUpdateEvent extends TaskAttemptEvent {
+  private final TaskStatusProto status;
+
+  public TaskAttemptStatusUpdateEvent(final QueryUnitAttemptId id,
+                                      TaskStatusProto status) {
+    super(id, TaskAttemptEventType.TA_UPDATE);
+    this.status = status;
+  }
+
+  public TaskStatusProto getStatus() {
+    return status;
+  }
 }

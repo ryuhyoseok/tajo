@@ -16,11 +16,19 @@
  * limitations under the License.
  */
 
-package tajo.master.event;
+package tajo.scheduler.event;
 
-public enum QueryEventType {
-  INIT,
-  START,
-  INTERNAL_ERROR,
-  SUBQUERY_COMPLETED
+import tajo.QueryUnitAttemptId;
+
+public class ScheduleTaskEvent extends SchedulerEvent {
+  private final QueryUnitAttemptId attemptId;
+
+  public ScheduleTaskEvent(QueryUnitAttemptId id) {
+    super(SchedulerEventType.SCHEDULE);
+    this.attemptId = id;
+  }
+
+  public QueryUnitAttemptId getTaskAttemptId() {
+    return attemptId;
+  }
 }

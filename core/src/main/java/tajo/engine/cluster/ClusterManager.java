@@ -28,6 +28,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.service.AbstractService;
 import tajo.catalog.CatalogService;
 import tajo.catalog.proto.CatalogProtos.TableDescProto;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto;
@@ -42,7 +43,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-public class ClusterManager implements EventHandler<WorkerEvent> {
+public class ClusterManager extends AbstractService implements EventHandler<WorkerEvent> {
   private final Log LOG = LogFactory.getLog(ClusterManager.class);
 
   private final Configuration conf;
@@ -52,12 +53,15 @@ public class ClusterManager implements EventHandler<WorkerEvent> {
   private final EventHandler eventHandler;
 
   private int clusterSize;
-  private Map<String, List<String>> DNSNameToHostsMap;
-  private Map<Fragment, FragmentServingInfo> servingInfoMap;
-  private Random rand = new Random(System.currentTimeMillis());
-  private Map<String, WorkerResource> resourcePool;
-  private PriorityQueue<WorkerResource> sortedResources;
-  private Set<String> failedWorkers;
+  private final Map<String, List<String>> DNSNameToHostsMap;
+  private final Map<Fragment, FragmentServingInfo> servingInfoMap;
+  private final Random rand = new Random(System.currentTimeMillis());
+  private final Map<String, WorkerResource> resourcePool;
+  private final PriorityQueue<WorkerResource> sortedResources;
+  private final Set<String> failedWorkers;
+
+  protected Thread eventHandlingThread;
+  private volatile boolean stopped;
 
   public ClusterManager(final Configuration conf,
                         final WorkerCommunicator wc,
@@ -65,19 +69,38 @@ public class ClusterManager implements EventHandler<WorkerEvent> {
                         final CatalogService catalog,
                         final EventHandler eventHandler)
       throws IOException {
-
+    super(ClusterManager.class.getName());
     this.conf = conf;
     this.wc = wc;
     this.tracker = tracker;
     this.catalog = catalog;
     this.eventHandler = eventHandler;
 
+    this.clusterSize = 0;
     this.DNSNameToHostsMap = Maps.newConcurrentMap();
     this.servingInfoMap = Maps.newConcurrentMap();
     this.resourcePool = Maps.newConcurrentMap();
     this.sortedResources = new PriorityQueue<WorkerResource>();
     this.failedWorkers = Sets.newHashSet();
-    this.clusterSize = 0;
+  }
+
+  public void init(Configuration conf) {
+    updateOnlineWorker();
+    try {
+      resetResourceInfo();
+    } catch (Exception e) {
+      LOG.error(e);
+      stopped = true;
+    }
+    super.init(conf);
+  }
+
+  public void start() {
+    super.start();
+  }
+
+  public void stop() {
+
   }
 
   public WorkerInfo getWorkerInfo(String workerName) throws RemoteException,

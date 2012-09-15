@@ -43,8 +43,8 @@ import tajo.engine.planner.LogicalOptimizer;
 import tajo.engine.planner.LogicalPlanner;
 import tajo.engine.planner.PlannerUtil;
 import tajo.engine.planner.PlanningContext;
-import tajo.engine.planner.global.QueryUnit;
-import tajo.engine.planner.global.QueryUnitAttempt;
+import tajo.master.QueryUnit;
+import tajo.master.QueryUnitAttempt;
 import tajo.engine.planner.logical.LogicalNode;
 import tajo.engine.planner.logical.StoreTableNode;
 import tajo.engine.query.QueryUnitRequestImpl;
@@ -227,15 +227,15 @@ public class TestWorker {
         "testLeafServer := select name, empId, deptName from employee",
         master.getEventHandler(), null, null, sm);
     qm.addQuery(q);
-    SubQuery su = new SubQuery(qid1.getSubQueryId(), master.getEventHandler(), sm, null, null);
+    SubQuery su = new SubQuery(qid1.getSubQueryId(), master.getEventHandler(), sm, null);
     qm.addSubQuery(su);
     sm.initTableBase(frags[0].getMeta(), "testLeafServer");
     QueryUnit [] qu = new QueryUnit[2];
-    qu[0] = new QueryUnit(qid1);
-    qu[1] = new QueryUnit(qid2);
+    qu[0] = new QueryUnit(qid1, master.getEventHandler());
+    qu[1] = new QueryUnit(qid2, master.getEventHandler());
     su.setQueryUnits(qu);
-    qu[0].setState(QueryStatus.QUERY_INITED);
-    qu[1].setState(QueryStatus.QUERY_INITED);
+    //qu[0].setState(QueryStatus.QUERY_INITED);
+    //qu[1].setState(QueryStatus.QUERY_INITED);
     QueryUnitAttempt attempt0 = qu[0].newAttempt();
     QueryUnitAttempt attempt1 = qu[1].newAttempt();
     QueryUnitRequest req1 = new QueryUnitRequestImpl(

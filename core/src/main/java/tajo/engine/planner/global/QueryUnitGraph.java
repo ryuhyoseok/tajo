@@ -3,6 +3,8 @@
  */
 package tajo.engine.planner.global;
 
+import tajo.master.QueryUnit;
+
 /**
  * @author jihoon
  *

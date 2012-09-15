@@ -16,11 +16,12 @@
  * limitations under the License.
  */
 
-package tajo.master.event;
+package tajo.scheduler.event;
 
-public enum QueryEventType {
-  INIT,
-  START,
-  INTERNAL_ERROR,
-  SUBQUERY_COMPLETED
+/**
+ * Event Type for Scheduler
+ */
+public enum SchedulerEventType {
+  SCHEDULE,
+  RESCHEDULE
 }

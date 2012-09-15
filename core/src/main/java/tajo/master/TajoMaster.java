@@ -20,6 +20,7 @@
 
 package tajo.master;
 
+import com.google.common.collect.Maps;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -35,8 +36,7 @@ import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
 import org.apache.zookeeper.KeeperException;
-import tajo.NConstants;
-import tajo.QueryIdFactory;
+import tajo.*;
 import tajo.catalog.*;
 import tajo.catalog.exception.AlreadyExistsTableException;
 import tajo.catalog.exception.NoSuchTableException;
@@ -49,16 +49,14 @@ import tajo.engine.ClientServiceProtos.*;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.engine.cluster.*;
 import tajo.engine.cluster.event.WorkerEventType;
-import tajo.engine.planner.global.QueryUnitAttempt;
-import tajo.engine.planner.global.event.TaskAttemptEvent;
-import tajo.engine.planner.global.event.TaskAttemptEventType;
-import tajo.master.event.QueryEvent;
-import tajo.master.event.QueryEventType;
+import tajo.master.event.*;
 import tajo.rpc.NettyRpc;
 import tajo.rpc.NettyRpcServer;
 import tajo.rpc.RemoteException;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
 import tajo.rpc.protocolrecords.PrimitiveProtos.StringProto;
+import tajo.scheduler.DefaultScheduler;
+import tajo.scheduler.event.SchedulerEventType;
 import tajo.storage.StorageManager;
 import tajo.storage.StorageUtil;
 import tajo.webapp.StaticHttpServer;
@@ -70,6 +68,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class TajoMaster extends CompositeService implements ClientService {
   /**
@@ -79,6 +78,7 @@ public class TajoMaster extends CompositeService implements ClientService {
 
   private static final Log LOG = LogFactory.getLog(TajoMaster.class);
 
+  private MasterContext context;
   private TajoConf conf;
   private FileSystem defaultFS;
 
@@ -93,16 +93,19 @@ public class TajoMaster extends CompositeService implements ClientService {
   private StorageManager storeManager;
   private GlobalEngine queryEngine;
   private WorkerCommunicator wc;
-  private ClusterManager cm;
+  private ClusterManager clusterManager;
   private WorkerListener wl;
   private QueryManager qm;
   private AsyncDispatcher dispatcher;
+  private DefaultScheduler scheduler;
 
   private InetSocketAddress clientServiceBindAddr;
   //private RPC.Server clientServiceServer;
   private NettyRpcServer server;
 
   private WorkerTracker tracker;
+
+  volatile Map<QueryId, Query> tasks = Maps.newLinkedHashMap();
 
   //Web Server
   private StaticHttpServer webServer;
@@ -114,10 +117,11 @@ public class TajoMaster extends CompositeService implements ClientService {
   @Override
   public void init(Configuration _conf) {
     this.conf = (TajoConf) _conf;
+    context = new MasterContext(conf);
 
     try {
       webServer = StaticHttpServer.getInstance(this ,"admin", null, 8080 ,
-          true, null, conf, null);
+          true, null, context.getConf(), null);
       webServer.start();
 
       QueryIdFactory.reset();
@@ -170,9 +174,7 @@ public class TajoMaster extends CompositeService implements ClientService {
 
       // connect the zkserver
       this.zkClient = new ZkClient(conf);
-      this.wl = new WorkerListener(conf, this, qm, dispatcher.getEventHandler());
-      dispatcher.register(TaskAttemptEventType.class,
-          new TaskAttemptEventDispatcher());
+      this.wl = new WorkerListener(context);
 
       // Setup RPC server
       // Get the master address
@@ -200,15 +202,22 @@ public class TajoMaster extends CompositeService implements ClientService {
 
       this.wc = new WorkerCommunicator(zkClient, tracker);
       this.wc.start();
-      this.cm = new ClusterManager(conf, wc, tracker, catalog,
+      this.clusterManager = new ClusterManager(conf, wc, tracker, catalog,
           dispatcher.getEventHandler());
-      dispatcher.register(WorkerEventType.class, this.cm);
+      addIfService(clusterManager);
+      dispatcher.register(WorkerEventType.class, this.clusterManager);
 
-      this.queryEngine = new GlobalEngine(conf,
-          catalog, storeManager, wc, qm, cm, dispatcher.getEventHandler());
+      this.queryEngine = new GlobalEngine(context, qm, storeManager);
       this.queryEngine.init();
 
+      this.scheduler = new DefaultScheduler(context);
+      dispatcher.register(SchedulerEventType.class, this.scheduler);
+      addIfService(scheduler);
+
       dispatcher.register(QueryEventType.class, new QueryEventDispatcher());
+      dispatcher.register(SubQueryEventType.class, new SubQueryEventDispatcher());
+      dispatcher.register(TaskEventType.class, new TaskEventDispatcher());
+      dispatcher.register(TaskAttemptEventType.class, new TaskAttemptEventDispatcher());
 
       this.wl.start();
     } catch (Exception e) {
@@ -221,14 +230,35 @@ public class TajoMaster extends CompositeService implements ClientService {
   private class QueryEventDispatcher
       implements EventHandler<QueryEvent> {
     public void handle(QueryEvent event) {
-      qm.getQuery(event.getQueryId()).handle(event);
+      context.getQuery(event.getQueryId()).handle(event);
+    }
+  }
+
+  private class SubQueryEventDispatcher implements EventHandler<SubQueryEvent> {
+    public void handle(SubQueryEvent event) {
+      SubQueryId id = event.getSubQueryId();
+      context.getQuery(id.getQueryId()).getSubQuery(id).handle(event);
+    }
+  }
+
+  private class TaskEventDispatcher
+      implements EventHandler<TaskEvent> {
+    public void handle(TaskEvent event) {
+      QueryUnitId taskId = event.getTaskId();
+      QueryUnit task = context.getQuery(taskId.getQueryId()).
+          getSubQuery(taskId.getSubQueryId()).getQueryUnit(taskId);
+      task.handle(event);
     }
   }
 
   private class TaskAttemptEventDispatcher
       implements EventHandler<TaskAttemptEvent> {
     public void handle(TaskAttemptEvent event) {
-      QueryUnitAttempt attempt = qm.getQueryUnitAttempt(event.getTaskAttemptId());
+      QueryUnitAttemptId attemptId = event.getTaskAttemptId();
+      Query query = context.getQuery(attemptId.getQueryId());
+      SubQuery subQuery = query.getSubQuery(attemptId.getSubQueryId());
+      QueryUnit task = subQuery.getQueryUnit(attemptId.getQueryUnitId());
+      QueryUnitAttempt attempt = task.getAttempt(attemptId);
       attempt.handle(event);
     }
   }
@@ -318,7 +348,7 @@ public class TajoMaster extends CompositeService implements ClientService {
   }
 
   public ClusterManager getClusterManager() {
-    return cm;
+    return clusterManager;
   }
 
   public QueryManager getQueryManager() {
@@ -364,8 +394,9 @@ public class TajoMaster extends CompositeService implements ClientService {
   @Override
   public AttachTableResponse attachTable(AttachTableRequest request)
       throws RemoteException {
-    if (catalog.existsTable(request.getName()))
+    if (catalog.existsTable(request.getName())) {
       throw new AlreadyExistsTableException(request.getName());
+    }
 
     Path path = new Path(request.getPath());
 
@@ -423,8 +454,9 @@ public class TajoMaster extends CompositeService implements ClientService {
   @Override
   public CreateTableResponse createTable(CreateTableRequest request)
       throws RemoteException {
-    if (catalog.existsTable(request.getName()))
+    if (catalog.existsTable(request.getName())) {
       throw new AlreadyExistsTableException(request.getName());
+    }
 
     Path path = new Path(request.getPath());
     LOG.info(path.toUri());
@@ -525,6 +557,43 @@ public class TajoMaster extends CompositeService implements ClientService {
     } catch (Throwable t) {
       LOG.fatal("Error starting JobHistoryServer", t);
       System.exit(-1);
+    }
+  }
+
+  public class MasterContext {
+    private final Map<QueryId, Query> queries = Maps.newConcurrentMap();
+    private final TajoConf conf;
+
+    public MasterContext(TajoConf conf) {
+      this.conf = conf;
+    }
+
+    public TajoConf getConf() {
+      return conf;
+    }
+
+    public Query getQuery(QueryId queryId) {
+      return queries.get(queryId);
+    }
+
+    public Map<QueryId, Query> getAllQueries() {
+      return queries;
+    }
+
+    public EventHandler getEventHandler() {
+      return dispatcher.getEventHandler();
+    }
+
+    public CatalogService getCatalog() {
+      return catalog;
+    }
+
+    public ClusterManager getClusterManager() {
+      return clusterManager;
+    }
+
+    public WorkerCommunicator getWorkerCommunicator() {
+      return wc;
     }
   }
 }

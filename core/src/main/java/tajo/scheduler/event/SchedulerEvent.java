@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
-package tajo.engine.planner.global.event;
+package tajo.scheduler.event;
 
-import tajo.QueryUnitAttemptId;
+import org.apache.hadoop.yarn.event.AbstractEvent;
 
-/**
- * This class encapsulates task attempt related events.
- */
-public enum TaskAttemptEventType {
-  TA_UPDATE
+public class SchedulerEvent extends AbstractEvent<SchedulerEventType> {
+
+  public SchedulerEvent(SchedulerEventType schedulerEventType) {
+    super(schedulerEventType);
+  }
 }
