@@ -66,7 +66,7 @@ public class TestGlobalQueryOptimizer {
   private static Schema schema;
   private static QueryAnalyzer analyzer;
   private static LogicalPlanner logicalPlanner;
-  private static QueryId subQueryId;
+  private static QueryId queryId;
   private static QueryManager qm;
   private static GlobalOptimizer optimizer;
 
@@ -130,7 +130,7 @@ public class TestGlobalQueryOptimizer {
     }
 
     QueryIdFactory.reset();
-    subQueryId = QueryIdFactory.newQueryId();
+    queryId = QueryIdFactory.newQueryId();
     optimizer = new GlobalOptimizer();
   }
   
@@ -144,10 +144,11 @@ public class TestGlobalQueryOptimizer {
   public void testReduceLogicalQueryUnitSteps() throws IOException {
     PlanningContext context = analyzer.parse(
         "select table0.age,table0.salary,table1.salary from table0,table1 where table0.salary = table1.salary order by table0.age");
-    LogicalNode logicalPlan = logicalPlanner.createPlan(context);
-    logicalPlan = LogicalOptimizer.optimize(context, logicalPlan);
+    LogicalNode plan = logicalPlanner.createPlan(context);
+    plan = LogicalOptimizer.optimize(context, plan);
 
-    MasterPlan globalPlan = planner.build(subQueryId, logicalPlan);
+    MasterPlan globalPlan = planner.build(queryId,
+        (LogicalRootNode) plan);
     globalPlan = optimizer.optimize(globalPlan.getRoot());
     
     SubQuery unit = globalPlan.getRoot();

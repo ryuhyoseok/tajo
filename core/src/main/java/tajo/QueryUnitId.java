@@ -1,8 +1,8 @@
 package tajo;
 
+import tajo.TajoProtos.QueryUnitIdProto;
+import tajo.TajoProtos.QueryUnitIdProtoOrBuilder;
 import tajo.common.ProtoObject;
-import tajo.engine.TCommonProtos.QueryUnitIdProto;
-import tajo.engine.TCommonProtos.QueryUnitIdProtoOrBuilder;
 import tajo.impl.pb.SubQueryIdPBImpl;
 import tajo.util.TajoIdUtils;
 

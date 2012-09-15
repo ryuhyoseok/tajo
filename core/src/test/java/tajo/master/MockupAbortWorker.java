@@ -21,8 +21,8 @@
 package tajo.master;
 
 import org.apache.zookeeper.KeeperException;
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.conf.TajoConf;
-import tajo.engine.MasterWorkerProtos.QueryStatus;
 
 import java.io.IOException;
 
@@ -34,7 +34,7 @@ public class MockupAbortWorker extends MockupWorker {
   private void abortTask() {
     if (taskQueue.size() > 0) {
       MockupTask task = taskQueue.remove(0);
-      task.setStatus(QueryStatus.QUERY_ABORTED);
+      task.setState(TaskAttemptState.TA_FAILED);
     }
   }
 

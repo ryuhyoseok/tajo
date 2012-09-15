@@ -5,13 +5,9 @@ package tajo.engine.planner.global;
 
 import tajo.master.SubQuery;
 
-/**
- * @author jihoon
- *
- */
 public class MasterPlan {
-
   private SubQuery root;
+  private String outputTableName;
   
   public MasterPlan() {
     root = null;
@@ -27,5 +23,13 @@ public class MasterPlan {
   
   public SubQuery getRoot() {
     return this.root;
+  }
+
+  public void setOutputTableName(String tableName) {
+    this.outputTableName = tableName;
+  }
+
+  public String getOutputTable() {
+    return outputTableName;
   }
 }

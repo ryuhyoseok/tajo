@@ -42,18 +42,17 @@ import tajo.common.exception.NotImplementedException;
 import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.MasterWorkerProtos.Partition;
-import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.engine.cluster.ClusterManager;
-import tajo.engine.cluster.QueryManager;
-import tajo.ipc.protocolrecords.Fragment;
 import tajo.engine.parser.QueryBlock.FromTable;
 import tajo.engine.planner.PlannerUtil;
 import tajo.engine.planner.RangePartitionAlgorithm;
 import tajo.engine.planner.UniformRangePartition;
 import tajo.engine.planner.global.MasterPlan;
-import tajo.master.SubQuery.PARTITION_TYPE;
 import tajo.engine.planner.logical.*;
 import tajo.engine.utils.TupleUtil;
+import tajo.ipc.protocolrecords.Fragment;
+import tajo.master.SubQuery.PARTITION_TYPE;
+import tajo.master.TajoMaster.MasterContext;
 import tajo.storage.StorageManager;
 import tajo.storage.TupleRange;
 import tajo.util.TajoIdUtils;
@@ -71,39 +70,45 @@ public class GlobalPlanner {
 
   private TajoConf conf;
   private StorageManager sm;
-  private QueryManager qm;
   private CatalogService catalog;
-  private QueryId subId;
+  private QueryId queryId;
   private EventHandler eventHandler;
   private ClusterManager cm;
 
-  public GlobalPlanner(TajoConf conf,
-                       StorageManager sm,
-                       QueryManager qm,
-                       CatalogService catalog,
-                       EventHandler eventHandler,
-                       ClusterManager cm)
+  public GlobalPlanner(final MasterContext context, StorageManager sm)
       throws IOException {
-    this.conf = conf;
+    this.conf = context.getConf();
     this.sm = sm;
-    this.qm = qm;
-    this.catalog = catalog;
-    this.eventHandler = eventHandler;
-    this.cm = cm;
+    this.catalog = context.getCatalog();
+    this.eventHandler = context.getEventHandler();
+    this.cm = context.getClusterManager();
   }
 
   /**
    * Builds a master plan from the given logical plan.
-   * @param subQueryId
-   * @param logicalPlan
+   * @param queryId
+   * @param rootNode
    * @return
    * @throws IOException
    */
-  public MasterPlan build(QueryId subQueryId, LogicalNode logicalPlan)
+  public MasterPlan build(QueryId queryId, LogicalRootNode rootNode)
       throws IOException {
-    this.subId = subQueryId;
+    this.queryId = queryId;
+
+    String outputTableName = null;
+    if (rootNode.getSubNode().getType() == ExprType.STORE) {
+      // create table queries are executed by the master
+      StoreTableNode stn = (StoreTableNode) rootNode.getSubNode();
+      outputTableName = stn.getTableName();
+
+      TableDesc desc = TCatUtil.newTableDesc(stn.getTableName(),
+          sm.getTableMeta(outputTableName),
+          sm.getTablePath(outputTableName));
+      catalog.addTable(desc);
+    }
+
     // insert store at the subnode of the root
-    UnaryNode root = (UnaryNode) logicalPlan;
+    UnaryNode root = rootNode;
     IndexWriteNode indexNode = null;
     // TODO: check whether the type of the subnode is CREATE_INDEX
     if (root.getSubNode().getType() == ExprType.CREATE_INDEX) {
@@ -111,20 +116,22 @@ public class GlobalPlanner {
       root = (UnaryNode)root.getSubNode();
       
       StoreIndexNode store = new StoreIndexNode(
-          QueryIdFactory.newSubQueryId(subId).toString());
+          QueryIdFactory.newSubQueryId(this.queryId).toString());
       store.setLocal(false);
       PlannerUtil.insertNode(root, store);
       
     } else if (root.getSubNode().getType() != ExprType.STORE) {
-      insertStore(QueryIdFactory.newSubQueryId(subId).toString(),
-          root).setLocal(false);
+      SubQueryId subQueryId = QueryIdFactory.newSubQueryId(this.queryId);
+      outputTableName = subQueryId.toString();
+      insertStore(subQueryId.toString(),root).setLocal(false);
     }
     
     // convert 2-phase plan
-    LogicalNode tp = convertTo2Phase(logicalPlan);
+    LogicalNode tp = convertTo2Phase(rootNode);
 
     // make query graph
     MasterPlan globalPlan = convertToGlobalPlan(indexNode, tp);
+    globalPlan.setOutputTableName(outputTableName);
 
     return globalPlan;
   }
@@ -168,10 +175,10 @@ public class GlobalPlanner {
         if (groupby.getSubNode().getType() != ExprType.UNION &&
             groupby.getSubNode().getType() != ExprType.STORE &&
             groupby.getSubNode().getType() != ExprType.SCAN) {
-          tableId = QueryIdFactory.newSubQueryId(subId).toString();
+          tableId = QueryIdFactory.newSubQueryId(queryId).toString();
           insertStore(tableId, groupby);
         }
-        tableId = QueryIdFactory.newSubQueryId(subId).toString();
+        tableId = QueryIdFactory.newSubQueryId(queryId).toString();
         // insert (a store for the first group by) and (a second group by)
         PlannerUtil.transformGroupbyTo2PWithStore((GroupbyNode)node, tableId);
       } else if (node.getType() == ExprType.SORT) {
@@ -181,10 +188,10 @@ public class GlobalPlanner {
         if (sort.getSubNode().getType() != ExprType.UNION &&
             sort.getSubNode().getType() != ExprType.STORE &&
             sort.getSubNode().getType() != ExprType.SCAN) {
-          tableId = QueryIdFactory.newSubQueryId(subId).toString();
+          tableId = QueryIdFactory.newSubQueryId(queryId).toString();
           insertStore(tableId, sort);
         }
-        tableId = QueryIdFactory.newSubQueryId(subId).toString();
+        tableId = QueryIdFactory.newSubQueryId(queryId).toString();
         // insert (a store for the first sort) and (a second sort)
         PlannerUtil.transformSortTo2PWithStore((SortNode)node, tableId);
       } else if (node.getType() == ExprType.JOIN) {
@@ -249,14 +256,14 @@ public class GlobalPlanner {
         // insert stores for the first phase
         if (join.getOuterNode().getType() != ExprType.UNION &&
             join.getOuterNode().getType() != ExprType.STORE) {
-          tableId = QueryIdFactory.newSubQueryId(subId).toString();
+          tableId = QueryIdFactory.newSubQueryId(queryId).toString();
           store = new StoreTableNode(tableId);
           store.setLocal(true);
           PlannerUtil.insertOuterNode(node, store);
         }
         if (join.getInnerNode().getType() != ExprType.UNION &&
             join.getInnerNode().getType() != ExprType.STORE) {
-          tableId = QueryIdFactory.newSubQueryId(subId).toString();
+          tableId = QueryIdFactory.newSubQueryId(queryId).toString();
           store = new StoreTableNode(tableId);
           store.setLocal(true);
           PlannerUtil.insertInnerNode(node, store);
@@ -267,7 +274,7 @@ public class GlobalPlanner {
         // insert stores
         if (union.getOuterNode().getType() != ExprType.UNION &&
             union.getOuterNode().getType() != ExprType.STORE) {
-          tableId = QueryIdFactory.newSubQueryId(subId).toString();
+          tableId = QueryIdFactory.newSubQueryId(queryId).toString();
           store = new StoreTableNode(tableId);
           if(union.getOuterNode().getType() == ExprType.GROUP_BY) {
             /*This case is for cube by operator
@@ -281,7 +288,7 @@ public class GlobalPlanner {
         }
         if (union.getInnerNode().getType() != ExprType.UNION &&
             union.getInnerNode().getType() != ExprType.STORE) {
-          tableId = QueryIdFactory.newSubQueryId(subId).toString();
+          tableId = QueryIdFactory.newSubQueryId(queryId).toString();
           store = new StoreTableNode(tableId);
           if(union.getInnerNode().getType() == ExprType.GROUP_BY) {
             /*This case is for cube by operator
@@ -297,7 +304,7 @@ public class GlobalPlanner {
         UnaryNode unary = (UnaryNode)node;
         if (unary.getType() != ExprType.STORE &&
             unary.getSubNode().getType() != ExprType.STORE) {
-          tableId = QueryIdFactory.newSubQueryId(subId).toString();
+          tableId = QueryIdFactory.newSubQueryId(queryId).toString();
           insertStore(tableId, unary);
         }
       }
@@ -338,7 +345,7 @@ public class GlobalPlanner {
         if (store.getTableName().startsWith(QueryId.PREFIX)) {
           id = TajoIdUtils.newSubQueryId(store.getTableName());
         } else {
-          id = QueryIdFactory.newSubQueryId(subId);
+          id = QueryIdFactory.newSubQueryId(queryId);
         }
         unit = new SubQuery(id, eventHandler, sm, this);
 
@@ -817,7 +824,7 @@ public class GlobalPlanner {
     SubQuery root = null;
     
     if (index != null) {
-      SubQueryId id = QueryIdFactory.newSubQueryId(subId);
+      SubQueryId id = QueryIdFactory.newSubQueryId(queryId);
       SubQuery unit = new SubQuery(id, eventHandler, sm, this);
       root = makeScanUnit(unit);
       root.setLogicalPlan(index);

@@ -29,6 +29,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import tajo.*;
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.*;
 import tajo.catalog.proto.CatalogProtos.DataType;
 import tajo.catalog.proto.CatalogProtos.StoreType;
@@ -258,12 +259,12 @@ public class TestWorker {
     submitted.add(req1.getId());
     submitted.add(req2.getId());
 
-    QueryStatus s1, s2;
+    TaskAttemptState s1, s2;
     do {
       s1 = worker1.getTask(req1.getId()).getStatus();
       s2 = worker2.getTask(req2.getId()).getStatus();
-    } while (s1 != QueryStatus.QUERY_FINISHED
-        && s2 != QueryStatus.QUERY_FINISHED);
+    } while (s1 != TaskAttemptState.TA_SUCCEEDED
+        && s2 != TaskAttemptState.TA_SUCCEEDED);
 
     Command.Builder cmd = Command.newBuilder();
     cmd.setId(req1.getId().getProto()).setType(CommandType.FINALIZE);
@@ -344,7 +345,7 @@ public class TestWorker {
     Path secData = sm.initLocalTableBase(new Path(TEST_PATH + "/sec"), secMeta);
     
     for (TaskStatusProto ips : list) {
-      if (ips.getStatus() == QueryStatus.QUERY_FINISHED) {
+      if (ips.getState() == TaskAttemptState.TA_SUCCEEDED) {
         long sum = 0;
         List<Partition> partitions = ips.getPartitionsList();
         assertEquals(2, partitions.size());
@@ -413,7 +414,7 @@ public class TestWorker {
         // Because this query is to store, it should have the statistics info 
         // of the store data. The below 'assert' examines the existence of 
         // the statistics info.
-        if (ips.getStatus() == QueryStatus.QUERY_FINISHED) {
+        if (ips.getState() == TaskAttemptState.TA_SUCCEEDED) {
           reported.add(new QueryUnitAttemptId(ips.getId()));
         }
       }

@@ -2,7 +2,7 @@ package tajo.catalog.statistics;
 
 import com.google.common.collect.Lists;
 import org.junit.Test;
-import tajo.engine.TCommonProtos.StatType;
+import tajo.TajoProtos.StatType;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;

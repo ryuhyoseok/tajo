@@ -1,6 +1,4 @@
 /*
- * Copyright 2012 Database Lab., Korea Univ.
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -20,45 +18,41 @@
 
 package tajo.master;
 
-import tajo.engine.MasterWorkerProtos.QueryStatus;
+import tajo.TajoProtos.TaskAttemptState;
 
-/**
- * @author jihoon
- *
- */
 public class InProgressStatus {
 
   private float progress;
-  private QueryStatus status;
+  private TaskAttemptState state;
   
   public InProgressStatus() {
     this.setProgress(0.f);
-    this.setStatus(QueryStatus.QUERY_INITED);
+    this.setState(TaskAttemptState.TA_PENDING);
   }
   
-  public InProgressStatus(float progress, QueryStatus status) {
+  public InProgressStatus(float progress, TaskAttemptState state) {
     this.setProgress(progress);
-    this.setStatus(status);
+    this.setState(state);
   }
   
   public void setProgress(float progress) {
     this.progress = progress;
   }
   
-  public void setStatus(QueryStatus status) {
-    this.status = status;
+  public void setState(TaskAttemptState state) {
+    this.state = state;
   }
   
   public float getProgress() {
     return this.progress;
   }
   
-  public QueryStatus getStatus() {
-    return this.status;
+  public TaskAttemptState getState() {
+    return this.state;
   }
   
   @Override
   public String toString() {
-    return "(PROGRESS: " + this.progress + " STATUS: " + this.status + ")";
+    return "(PROGRESS: " + this.progress + " STATUS: " + this.state + ")";
   }
 }

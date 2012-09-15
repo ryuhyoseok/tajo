@@ -31,6 +31,8 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.zookeeper.KeeperException;
 import tajo.NConstants;
 import tajo.QueryUnitAttemptId;
+import tajo.TajoProtos.QueryState;
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.common.Sleeper;
 import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
@@ -259,7 +261,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
       LOG.fatal("Unhandled exception. Starting shutdown.", t);
     } finally {     
       for (Task t : tasks.values()) {
-        if (t.getStatus() != QueryStatus.QUERY_FINISHED) {
+        if (t.getStatus() != TaskAttemptState.TA_SUCCEEDED) {
           t.kill();
         }
       }
@@ -295,14 +297,14 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
     List<QueryUnitAttemptId> tobeRemoved = Lists.newArrayList();
     
     // builds one status for each in-progress query
-    QueryStatus qs;
+    TaskAttemptState taskState;
 
     for (Task task : tasks.values()) {
       if (task.getProgressFlag()) {
-        qs = task.getStatus();
-        if (qs == QueryStatus.QUERY_ABORTED
-            || qs == QueryStatus.QUERY_KILLED
-            || qs == QueryStatus.QUERY_FINISHED) {
+        taskState = task.getStatus();
+        if (taskState == TaskAttemptState.TA_FAILED
+            || taskState == TaskAttemptState.TA_KILLED
+            || taskState == TaskAttemptState.TA_SUCCEEDED) {
           // TODO - in-progress queries should be kept until this leafserver
           // ensures that this report is delivered.
           tobeRemoved.add(task.getId());
@@ -443,7 +445,6 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
     
     public void schedule(Task task) throws InterruptedException {
       this.blockingQueue.put(task);
-      task.setStatus(QueryStatus.QUERY_PENDING);
     }
     
     public void shutdown() {
@@ -483,12 +484,12 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
         LOG.warn("Unknown task: " + uid);
         return null;
       }
-      QueryStatus status = task.getStatus();
+      TaskAttemptState state = task.getStatus();
       switch (cmd.getType()) {
       case FINALIZE:
-        if (status == QueryStatus.QUERY_FINISHED
-        || status == QueryStatus.QUERY_ABORTED
-        || status == QueryStatus.QUERY_KILLED) {
+        if (state == TaskAttemptState.TA_SUCCEEDED
+        || state == TaskAttemptState.TA_FAILED
+        || state == TaskAttemptState.TA_KILLED) {
           task.cleanUp();
           LOG.info("Query unit ( " + uid + ") is finalized");
         } else {

@@ -22,9 +22,9 @@ import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.impl.pb.ApplicationIdPBImpl;
 import org.apache.hadoop.yarn.proto.YarnProtos;
 import tajo.QueryId;
+import tajo.TajoProtos.QueryIdProto;
+import tajo.TajoProtos.QueryIdProtoOrBuilder;
 import tajo.common.ProtoObject;
-import tajo.engine.TCommonProtos.QueryIdProto;
-import tajo.engine.TCommonProtos.QueryIdProtoOrBuilder;
 
 import java.text.NumberFormat;
 

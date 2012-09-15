@@ -21,17 +21,17 @@
 package tajo.master;
 
 import tajo.QueryUnitAttemptId;
-import tajo.engine.MasterWorkerProtos.QueryStatus;
+import tajo.TajoProtos.TaskAttemptState;
 
 public class MockupTask {
   private QueryUnitAttemptId unitId;
-  private QueryStatus status;
+  private TaskAttemptState state;
   private int leftTime;
 
   public MockupTask(QueryUnitAttemptId unitId,
                     int runTime) {
     this.unitId = unitId;
-    this.status = QueryStatus.QUERY_INPROGRESS;
+    this.state = TaskAttemptState.TA_PENDING;
     this.leftTime = runTime;
   }
 
@@ -39,8 +39,8 @@ public class MockupTask {
     return this.unitId;
   }
 
-  public QueryStatus getStatus() {
-    return this.status;
+  public TaskAttemptState getState() {
+    return this.state;
   }
 
   public int getLeftTime() {
@@ -51,7 +51,7 @@ public class MockupTask {
     this.leftTime -= time;
   }
 
-  public void setStatus(QueryStatus status) {
-    this.status = status;
+  public void setState(TaskAttemptState state) {
+    this.state = state;
   }
 }

@@ -20,10 +20,10 @@ package tajo.impl.pb;
 
 import tajo.QueryId;
 import tajo.SubQueryId;
-import tajo.engine.TCommonProtos;
-import tajo.engine.TCommonProtos.QueryIdProto;
-import tajo.engine.TCommonProtos.SubQueryIdProto;
-import tajo.engine.TCommonProtos.SubQueryIdProtoOrBuilder;
+import tajo.TajoProtos;
+import tajo.TajoProtos.QueryIdProto;
+import tajo.TajoProtos.SubQueryIdProto;
+import tajo.TajoProtos.SubQueryIdProtoOrBuilder;
 
 public class SubQueryIdPBImpl extends SubQueryId {
   SubQueryIdProto proto = SubQueryIdProto.getDefaultInstance();
@@ -72,7 +72,7 @@ public class SubQueryIdPBImpl extends SubQueryId {
 
   @Override
   public synchronized int getId() {
-    TCommonProtos.SubQueryIdProtoOrBuilder p = viaProto ? proto : builder;
+    SubQueryIdProtoOrBuilder p = viaProto ? proto : builder;
     return (p.getId());
   }
 
@@ -107,7 +107,7 @@ public class SubQueryIdPBImpl extends SubQueryId {
     return new QueryIdPBImpl(p);
   }
 
-  private TCommonProtos.QueryIdProto convertToProtoFormat(QueryId t) {
+  private QueryIdProto convertToProtoFormat(QueryId t) {
     return ((QueryIdPBImpl)t).getProto();
   }
 }

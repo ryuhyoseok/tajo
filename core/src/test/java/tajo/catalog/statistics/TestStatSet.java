@@ -1,13 +1,10 @@
 package tajo.catalog.statistics;
 
 import org.junit.Test;
-import tajo.engine.TCommonProtos.StatType;
+import tajo.TajoProtos.StatType;
 
 import static org.junit.Assert.assertEquals;
 
-/**
- * @author Hyunsik Choi
- */
 public class TestStatSet {
   @Test
   public final void testStatGroup() throws CloneNotSupportedException {

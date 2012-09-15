@@ -71,7 +71,7 @@ public class TestGlobalQueryPlanner {
   private static Schema schema;
   private static QueryAnalyzer analyzer;
   private static LogicalPlanner logicalPlanner;
-  private static QueryId subQueryId;
+  private static QueryId queryId;
   private static QueryManager qm;
   private static StorageManager sm;
 
@@ -137,7 +137,7 @@ public class TestGlobalQueryPlanner {
     }
 
     QueryIdFactory.reset();
-    subQueryId = QueryIdFactory.newQueryId();
+    queryId = QueryIdFactory.newQueryId();
   }
 
   @AfterClass
@@ -150,17 +150,19 @@ public class TestGlobalQueryPlanner {
   public void testScan() throws IOException {
     PlanningContext context = analyzer.parse(
         "select age, sumtest(salary) from table0");
-    LogicalNode logicalPlan = logicalPlanner.createPlan(context);
-    logicalPlan = LogicalOptimizer.optimize(context, logicalPlan);
+    LogicalNode plan1 = logicalPlanner.createPlan(context);
+    plan1 = LogicalOptimizer.optimize(context, plan1);
 
-    MasterPlan globalPlan = planner.build(subQueryId, logicalPlan);
+    MasterPlan globalPlan = planner.build(queryId,
+        (LogicalRootNode) plan1);
 
     SubQuery unit = globalPlan.getRoot();
     assertFalse(unit.hasChildQuery());
     assertEquals(PARTITION_TYPE.LIST, unit.getOutputType());
-    LogicalNode plan = unit.getLogicalPlan();
-    assertEquals(ExprType.STORE, plan.getType());
-    assertEquals(ExprType.SCAN, ((StoreTableNode)plan).getSubNode().getType());
+
+    LogicalNode plan2 = unit.getLogicalPlan();
+    assertEquals(ExprType.STORE, plan2.getType());
+    assertEquals(ExprType.SCAN, ((StoreTableNode)plan2).getSubNode().getType());
   }
 
   @Test
@@ -168,10 +170,10 @@ public class TestGlobalQueryPlanner {
       InterruptedException {
     PlanningContext context = analyzer.parse(
         "store1 := select age, sumtest(salary) from table0 group by age");
-    LogicalNode logicalPlan = logicalPlanner.createPlan(context);
-    logicalPlan = LogicalOptimizer.optimize(context, logicalPlan);
+    LogicalNode plan = logicalPlanner.createPlan(context);
+    plan = LogicalOptimizer.optimize(context, plan);
 
-    MasterPlan globalPlan = planner.build(subQueryId, logicalPlan);
+    MasterPlan globalPlan = planner.build(queryId, (LogicalRootNode) plan);
 
     SubQuery next, prev;
     
@@ -206,10 +208,10 @@ public class TestGlobalQueryPlanner {
   public void testSort() throws IOException {
     PlanningContext context = analyzer.parse(
         "store1 := select age from table0 order by age");
-    LogicalNode logicalPlan = logicalPlanner.createPlan(context);
-    logicalPlan = LogicalOptimizer.optimize(context, logicalPlan);
+    LogicalNode plan = logicalPlanner.createPlan(context);
+    plan = LogicalOptimizer.optimize(context, plan);
 
-    MasterPlan globalPlan = planner.build(subQueryId, logicalPlan);
+    MasterPlan globalPlan = planner.build(queryId, (LogicalRootNode) plan);
 
     SubQuery next, prev;
     
@@ -249,10 +251,10 @@ public class TestGlobalQueryPlanner {
     PlanningContext context = analyzer.parse(
         "select table0.age,table0.salary,table1.salary from table0,table1 " +
             "where table0.salary = table1.salary order by table0.age");
-    LogicalNode logicalPlan = logicalPlanner.createPlan(context);
-    logicalPlan = LogicalOptimizer.optimize(context, logicalPlan);
+    LogicalNode plan = logicalPlanner.createPlan(context);
+    plan = LogicalOptimizer.optimize(context, plan);
 
-    MasterPlan globalPlan = planner.build(subQueryId, logicalPlan);
+    MasterPlan globalPlan = planner.build(queryId, (LogicalRootNode) plan);
 
     SubQuery next, prev;
     
@@ -315,10 +317,10 @@ public class TestGlobalQueryPlanner {
   public void testSelectAfterJoin() throws IOException {
     String query = "select table0.name, table1.salary from table0,table1 where table0.name = table1.name and table1.salary > 10";
     PlanningContext context = analyzer.parse(query);
-    LogicalNode logicalPlan = logicalPlanner.createPlan(context);
-    logicalPlan = LogicalOptimizer.optimize(context, logicalPlan);
+    LogicalNode plan = logicalPlanner.createPlan(context);
+    plan = LogicalOptimizer.optimize(context, plan);
     
-    MasterPlan globalPlan = planner.build(subQueryId, logicalPlan);
+    MasterPlan globalPlan = planner.build(queryId, (LogicalRootNode) plan);
 
     SubQuery unit = globalPlan.getRoot();
     StoreTableNode store = unit.getStoreTableNode();
@@ -338,10 +340,10 @@ public class TestGlobalQueryPlanner {
   public void testCubeby() throws IOException {
     PlanningContext context = analyzer.parse(
         "select age, sum(salary) from table0 group by cube (age, id)");
-    LogicalNode logicalPlan = logicalPlanner.createPlan(context);
-    logicalPlan = LogicalOptimizer.optimize(context, logicalPlan);
+    LogicalNode plan = logicalPlanner.createPlan(context);
+    plan = LogicalOptimizer.optimize(context, plan);
 
-    MasterPlan globalPlan = planner.build(subQueryId, logicalPlan);
+    MasterPlan globalPlan = planner.build(queryId, (LogicalRootNode) plan);
 
     SubQuery unit = globalPlan.getRoot();
     StoreTableNode store = unit.getStoreTableNode();
@@ -476,10 +478,10 @@ public class TestGlobalQueryPlanner {
       throws IOException, CloneNotSupportedException {
     PlanningContext context = analyzer.parse(
         "store1 := select age, sumtest(salary) from table0 group by age");
-    LogicalNode logicalPlan = logicalPlanner.createPlan(context);
-    logicalPlan = LogicalOptimizer.optimize(context, logicalPlan);
+    LogicalNode plan = logicalPlanner.createPlan(context);
+    plan = LogicalOptimizer.optimize(context, plan);
 
-    MasterPlan globalPlan = planner.build(subQueryId, logicalPlan);
+    MasterPlan globalPlan = planner.build(queryId, (LogicalRootNode) plan);
 
     SubQuery second, first, mid;
     ScanNode secondScan, firstScan, midScan;

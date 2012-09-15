@@ -22,8 +22,10 @@ package tajo;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Maps;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.statistics.TableStat;
-import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.ipc.protocolrecords.Fragment;
 
 import java.io.File;
@@ -37,10 +39,12 @@ import java.util.concurrent.CountDownLatch;
  *
  */
 public class TaskAttemptContext {
+  private static final Log LOG = LogFactory.getLog(TaskAttemptContext.class);
+
   private final Map<String, List<Fragment>> fragmentMap
     = new HashMap<String, List<Fragment>>();
   
-  private QueryStatus status;
+  private TaskAttemptState state;
   private TableStat resultStats;
   private QueryUnitAttemptId queryId;
   private final File workDir;
@@ -70,15 +74,16 @@ public class TaskAttemptContext {
     this.workDir = workDir;
     this.repartitions = Maps.newHashMap();
     
-    status = QueryStatus.QUERY_INITED;
+    state = TaskAttemptState.TA_PENDING;
   }
   
-  public QueryStatus getStatus() {
-    return this.status;
+  public TaskAttemptState getState() {
+    return this.state;
   }
   
-  public void setStatus(QueryStatus status) {
-    this.status = status;
+  public void setState(TaskAttemptState state) {
+    this.state = state;
+    LOG.info("Query status of " + getTaskId() + " is changed to " + state);
   }
 
   public boolean hasResultStats() {

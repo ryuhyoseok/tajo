@@ -20,11 +20,11 @@
 
 package tajo.util;
 
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.statistics.Stat;
 import tajo.catalog.statistics.StatSet;
 import tajo.catalog.statistics.TableStat;
 import tajo.common.exception.NotImplementedException;
-import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.master.QueryUnit;
 
@@ -85,7 +85,7 @@ public class TQueryUtil {
 
     // TODO - to be fixed
     // QueryState
-    builder.setStatus(QueryStatus.QUERY_FINISHED);
+    builder.setState(TaskAttemptState.TA_SUCCEEDED);
     builder.setProgress(1.0f);
     builder.addAllPartitions(unit.getPartitions());
     builder.setResultStats(unit.getStats().getProto());

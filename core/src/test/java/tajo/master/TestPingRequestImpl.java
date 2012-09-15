@@ -22,7 +22,7 @@ package tajo.master;
 
 import org.junit.Test;
 import tajo.QueryIdFactory;
-import tajo.engine.MasterWorkerProtos.QueryStatus;
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.engine.query.StatusReportImpl;
 import tajo.engine.utils.TUtil;
@@ -45,13 +45,13 @@ public class TestPingRequestImpl {
     TaskStatusProto.Builder builder = TaskStatusProto.newBuilder()
         .setId(TUtil.newQueryUnitAttemptId().getProto())
         .setProgress(0.5f)
-        .setStatus(QueryStatus.QUERY_FINISHED);
+        .setState(TaskAttemptState.TA_SUCCEEDED);
     list.add(builder.build());
     
     builder = TaskStatusProto.newBuilder()
         .setId(TUtil.newQueryUnitAttemptId().getProto())
         .setProgress(0.5f)
-        .setStatus(QueryStatus.QUERY_FINISHED);
+        .setState(TaskAttemptState.TA_SUCCEEDED);
     list.add(builder.build());
     
     StatusReport r1 = new StatusReportImpl(System.currentTimeMillis(),

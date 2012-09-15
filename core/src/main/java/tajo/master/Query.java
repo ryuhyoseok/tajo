@@ -30,9 +30,12 @@ import org.apache.hadoop.yarn.state.*;
 import tajo.QueryId;
 import tajo.QueryUnitId;
 import tajo.SubQueryId;
-import tajo.engine.MasterWorkerProtos.QueryStatus;
+import tajo.TajoProtos.QueryState;
 import tajo.engine.planner.global.MasterPlan;
-import tajo.master.event.*;
+import tajo.master.event.QueryEvent;
+import tajo.master.event.QueryEventType;
+import tajo.master.event.SubQueryEvent;
+import tajo.master.event.SubQueryEventType;
 import tajo.storage.StorageManager;
 
 import java.io.IOException;
@@ -47,7 +50,6 @@ public class Query implements EventHandler<QueryEvent> {
   private final QueryId id;
   private String queryStr;
   private Map<SubQueryId, SubQuery> subqueries;
-  private QueryStatus status;
   private final EventHandler eventHandler;
   private final StateMachine<QueryState, QueryEventType, QueryEvent> stateMachine;
   private final MasterPlan plan;
@@ -61,16 +63,17 @@ public class Query implements EventHandler<QueryEvent> {
   private static final StateMachineFactory
       <Query,QueryState,QueryEventType,QueryEvent> stateMachineFactory =
       new StateMachineFactory<Query, QueryState, QueryEventType, QueryEvent>
-          (QueryState.NEW)
+          (QueryState.QUERY_NEW)
 
-      .addTransition(QueryState.NEW, QueryState.INIT,
+      .addTransition(QueryState.QUERY_NEW, QueryState.QUERY_INIT,
           QueryEventType.INIT, new InitTransition())
 
-      .addTransition(QueryState.INIT, QueryState.RUNNING,
+      .addTransition(QueryState.QUERY_INIT, QueryState.QUERY_RUNNING,
           QueryEventType.START, new StartTransition())
 
-      .addTransition(QueryState.RUNNING,
-          EnumSet.of(QueryState.RUNNING, QueryState.SUCCEEDED, QueryState.FAILED),
+      .addTransition(QueryState.QUERY_RUNNING,
+          EnumSet.of(QueryState.QUERY_RUNNING, QueryState.QUERY_SUCCEEDED,
+              QueryState.QUERY_FAILED),
           QueryEventType.SUBQUERY_COMPLETED,
           new SubQueryCompletedTransition())
 
@@ -163,10 +166,6 @@ public class Query implements EventHandler<QueryEvent> {
     }
   }
 
-  public void setState(QueryStatus status) {
-    this.status = status;
-  }
-
   public int getScheduleQueueSize() {
     return scheduleQueue.size();
   }
@@ -235,7 +234,7 @@ public class Query implements EventHandler<QueryEvent> {
 
   QueryState checkQueryForCompleted() {
     if (completedSubQueryCount == subqueries.size()) {
-      return QueryState.SUCCEEDED;
+      return QueryState.QUERY_SUCCEEDED;
     }
     return getState();
   }

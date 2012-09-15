@@ -2,11 +2,11 @@ package tajo.catalog.statistics;
 
 import com.google.common.collect.Maps;
 import com.google.gson.annotations.Expose;
+import tajo.TajoProtos.StatProto;
+import tajo.TajoProtos.StatSetProto;
+import tajo.TajoProtos.StatSetProtoOrBuilder;
+import tajo.TajoProtos.StatType;
 import tajo.common.ProtoObject;
-import tajo.engine.TCommonProtos.StatProto;
-import tajo.engine.TCommonProtos.StatSetProto;
-import tajo.engine.TCommonProtos.StatSetProtoOrBuilder;
-import tajo.engine.TCommonProtos.StatType;
 import tajo.engine.json.GsonCreator;
 
 import java.util.Collection;

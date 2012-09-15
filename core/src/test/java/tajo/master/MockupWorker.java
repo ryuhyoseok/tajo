@@ -29,6 +29,7 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.zookeeper.KeeperException;
 import tajo.NConstants;
 import tajo.QueryUnitAttemptId;
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.statistics.TableStat;
 import tajo.conf.TajoConf;
 import tajo.engine.MasterWorkerProtos.*;
@@ -139,13 +140,13 @@ public abstract class MockupWorker
   }
 
   public TaskStatusProto getReport(QueryUnitAttemptId queryUnitId,
-                                         QueryStatus status) {
+                                         TaskAttemptState status) {
     TaskStatusProto.Builder builder = TaskStatusProto.newBuilder();
     builder.setId(queryUnitId.getProto())
         .setProgress(0.0f)
-        .setStatus(status);
+        .setState(status);
 
-    if (status == QueryStatus.QUERY_FINISHED) {
+    if (status == TaskAttemptState.TA_SUCCEEDED) {
       builder.setResultStats(new TableStat().getProto());
     }
 
@@ -170,12 +171,12 @@ public abstract class MockupWorker
     for (Command cmd : request.getCommandList()) {
       uid = new QueryUnitAttemptId(cmd.getId());
       MockupTask task = this.taskMap.get(uid);
-      QueryStatus status = task.getStatus();
+      TaskAttemptState status = task.getState();
       switch (cmd.getType()) {
         case FINALIZE:
-          if (status == QueryStatus.QUERY_FINISHED
-              || status == QueryStatus.QUERY_ABORTED
-              || status == QueryStatus.QUERY_KILLED) {
+          if (status == TaskAttemptState.TA_SUCCEEDED
+              || status == TaskAttemptState.TA_FAILED
+              || status == TaskAttemptState.TA_KILLED) {
             taskMap.remove(task.getId());
           } else {
             taskMap.remove(task.getId());
@@ -249,19 +250,19 @@ public abstract class MockupWorker
   protected void progressTask() {
     if (taskQueue.size() > 0) {
       MockupTask task = taskQueue.get(0);
-      switch (task.getStatus()) {
-        case QUERY_INITED:
-          task.setStatus(QueryStatus.QUERY_INPROGRESS);
+      switch (task.getState()) {
+        case TA_PENDING:
+          task.setState(TaskAttemptState.TA_RUNNING);
           break;
-        case QUERY_INPROGRESS:
+        case TA_RUNNING:
           task.updateTime(3000);
           if (task.getLeftTime() <= 0) {
-            task.setStatus(QueryStatus.QUERY_FINISHED);
+            task.setState(TaskAttemptState.TA_SUCCEEDED);
             taskQueue.remove(0);
           }
           break;
         default:
-          LOG.error("Invalid task status: " + task.getStatus());
+          LOG.error("Invalid task status: " + task.getState());
           break;
       }
     }
@@ -281,14 +282,14 @@ public abstract class MockupWorker
 
     // builds one status for each in-progress query
     for (MockupTask task : taskMap.values()) {
-      if (task.getStatus() == QueryStatus.QUERY_ABORTED
-          || task.getStatus() == QueryStatus.QUERY_KILLED
-          || task.getStatus() == QueryStatus.QUERY_FINISHED) {
+      if (task.getState() == TaskAttemptState.TA_FAILED
+          || task.getState() == TaskAttemptState.TA_KILLED
+          || task.getState() == TaskAttemptState.TA_SUCCEEDED) {
         // TODO - in-progress queries should be kept until this leafserver
         tobeRemoved.add(task.getId());
       }
 
-      status = this.getReport(task.getId(), task.getStatus());
+      status = this.getReport(task.getId(), task.getState());
       list.add(status);
     }
 

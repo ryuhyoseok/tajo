@@ -18,10 +18,10 @@
 
 package tajo.engine.query;
 
+import tajo.TajoProtos.QueryUnitAttemptIdProto;
 import tajo.engine.MasterWorkerProtos.StatusReportProto;
 import tajo.engine.MasterWorkerProtos.StatusReportProtoOrBuilder;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
-import tajo.engine.TCommonProtos.QueryUnitAttemptIdProto;
 import tajo.ipc.StatusReport;
 
 import java.util.ArrayList;

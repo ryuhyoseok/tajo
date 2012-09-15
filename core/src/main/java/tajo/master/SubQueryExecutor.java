@@ -33,6 +33,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.event.EventHandler;
 import tajo.QueryId;
+import tajo.TajoProtos.QueryState;
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.TCatUtil;
 import tajo.catalog.TableMeta;
 import tajo.catalog.proto.CatalogProtos.StoreType;
@@ -231,7 +233,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
   private void sendCommand(QueryUnitAttempt unit, CommandType type)
       throws Exception {
     Command.Builder cmd = Command.newBuilder();
-    cmd.setId(unit.getId().getProto()).setType(type);
+    //cmd.setId(unit.getId().getProto()).setType(type);
     requestToWC(unit.getHost(),
         CommandRequestProto.newBuilder().addCommand(cmd.build()).build());
   }
@@ -737,15 +739,15 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
         int submitted = 0;
         for (QueryUnit queryUnit : subQuery.getQueryUnits()) {
           //QueryStatus status = queryUnit.getState();
-          QueryStatus status = QueryStatus.QUERY_FINISHED;
+          TaskAttemptState status = TaskAttemptState.TA_SUCCEEDED;
 
           switch (status) {
-            case QUERY_INITED: inited++; break;
-            case QUERY_PENDING: pending++; break;
-            case QUERY_INPROGRESS: inprogress++; break;
-            case QUERY_FINISHED: finish++; break;
-            case QUERY_KILLED: killed++; break;
-            case QUERY_ABORTED:
+            case TA_UNASSIGNED: inited++; break;
+            case TA_ASSIGNED: pending++; break;
+            case TA_RUNNING: inprogress++; break;
+            case TA_SUCCEEDED: finish++; break;
+            case TA_KILLED: killed++; break;
+            case TA_FAILED:
               aborted++;
               if (queryUnit.getRetryCount() <
                   QueryUnitSubmitter.RETRY_LIMIT) {
@@ -814,7 +816,7 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
       ClusterManager.WorkerResource wr;
       boolean retryRequired;
       boolean wait;
-      QueryStatus status;
+      TaskAttemptState status;
       int submitted = 0;
       int inited = 0;
       int pending = 0;
@@ -827,33 +829,33 @@ public class SubQueryExecutor extends Thread implements EventHandler<SubQueryEve
         retryRequired = false;
         wait = false;
         //status = attempt.getState();
-        status = QueryStatus.QUERY_FINISHED;
+        status = TaskAttemptState.TA_SUCCEEDED;
 
         switch (status) {
-          case QUERY_INITED:
+          case TA_NEW:
             inited++;
             wait = true;
             break;
-          case QUERY_PENDING:
+          case TA_UNASSIGNED:
             pending++;
             wait = true;
             break;
-          case QUERY_INPROGRESS:
+          case TA_RUNNING:
             inprogress++;
             wait = true;
             break;
-          case QUERY_FINISHED:
+          case TA_SUCCEEDED:
             toBeRemoved.add(attempt);
             //attempt.getQueryUnit().setState(QueryStatus.QUERY_FINISHED);
             success++;
             cm.freeSlot(attempt.getHost());
             break;
-          case QUERY_ABORTED:
+          case TA_FAILED:
             toBeRemoved.add(attempt);
             retryRequired = true;
             aborted++;
             break;
-          case QUERY_KILLED:
+          case TA_KILLED:
             toBeRemoved.add(attempt);
             sendCommand(attempt, CommandType.STOP);
             killed++;

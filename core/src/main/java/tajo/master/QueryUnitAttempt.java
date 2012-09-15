@@ -25,6 +25,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.state.*;
 import tajo.QueryUnitAttemptId;
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.statistics.TableStat;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.master.event.*;
@@ -55,19 +56,23 @@ public class QueryUnitAttempt implements EventHandler<TaskAttemptEvent> {
       <QueryUnitAttempt, TaskAttemptState, TaskAttemptEventType, TaskAttemptEvent>
       stateMachineFactory = new StateMachineFactory
       <QueryUnitAttempt, TaskAttemptState, TaskAttemptEventType, TaskAttemptEvent>
-      (TaskAttemptState.NEW)
+      (TaskAttemptState.TA_NEW)
 
-      .addTransition(TaskAttemptState.NEW, TaskAttemptState.UNASSIGNED,
+      .addTransition(TaskAttemptState.TA_NEW, TaskAttemptState.TA_UNASSIGNED,
           TaskAttemptEventType.TA_SCHEDULE, new RequestScheduleTransition())
-      .addTransition(TaskAttemptState.UNASSIGNED, TaskAttemptState.ASSIGNED,
+
+      .addTransition(TaskAttemptState.TA_UNASSIGNED, TaskAttemptState.TA_ASSIGNED,
           TaskAttemptEventType.TA_ASSIGNED)
-      .addTransition(TaskAttemptState.ASSIGNED, TaskAttemptState.RUNNING,
+
+      .addTransition(TaskAttemptState.TA_ASSIGNED, TaskAttemptState.TA_RUNNING,
           TaskAttemptEventType.TA_LAUNCHED, new LaunchTransition())
-      .addTransition(TaskAttemptState.RUNNING,
-          EnumSet.of(TaskAttemptState.RUNNING, TaskAttemptState.FAILED,
-          TaskAttemptState.KILLED, TaskAttemptState.SUCCEEDED),
+
+      .addTransition(TaskAttemptState.TA_RUNNING,
+          EnumSet.of(TaskAttemptState.TA_RUNNING, TaskAttemptState.TA_FAILED,
+          TaskAttemptState.TA_KILLED, TaskAttemptState.TA_SUCCEEDED),
           TaskAttemptEventType.TA_UPDATE,
           new StatusUpdateTransition())
+
       .installTopology();
 
   private final StateMachine<TaskAttemptState, TaskAttemptEventType, TaskAttemptEvent>
@@ -170,25 +175,19 @@ public class QueryUnitAttempt implements EventHandler<TaskAttemptEvent> {
       TaskAttemptStatusUpdateEvent updateEvent =
           (TaskAttemptStatusUpdateEvent) event;
 
-      switch (updateEvent.getStatus().getStatus()) {
-        case QUERY_INITED:
-        case QUERY_PENDING:
-        case QUERY_INPROGRESS:
-          return TaskAttemptState.RUNNING;
+      switch (updateEvent.getStatus().getState()) {
+        case TA_PENDING:
+        case TA_RUNNING:
+          return TaskAttemptState.TA_RUNNING;
 
-        case QUERY_FINISHED:
+        case TA_SUCCEEDED:
           taskAttempt.updateProgress(updateEvent.getStatus());
           taskAttempt.eventHandler.handle(new TaskTAttemptEvent(updateEvent.getTaskAttemptId(),
               TaskEventType.T_ATTEMPT_SUCCEEDED));
 
-          return TaskAttemptState.SUCCEEDED;
-        case QUERY_ABORTED:
-          return TaskAttemptState.FAILED;
-        case QUERY_KILLED:
-          return TaskAttemptState.KILLED;
+          return TaskAttemptState.TA_SUCCEEDED;
         default:
-          throw new IllegalStateException(taskAttempt.getId() + " TaskAttempt "
-              + updateEvent.getStatus());
+          return taskAttempt.getState();
       }
     }
   }

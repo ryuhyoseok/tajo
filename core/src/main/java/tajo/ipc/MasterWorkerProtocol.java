@@ -21,7 +21,6 @@
 package tajo.ipc;
 
 import tajo.engine.MasterWorkerProtos.StatusReportProto;
-import tajo.engine.TCommonProtos.QueryUnitAttemptIdProto;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
 
 public interface MasterWorkerProtocol {

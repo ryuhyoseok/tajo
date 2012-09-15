@@ -30,6 +30,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
 import tajo.QueryUnitAttemptId;
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.TaskAttemptContext;
 import tajo.catalog.Schema;
 import tajo.catalog.TableMeta;
@@ -37,7 +38,6 @@ import tajo.catalog.statistics.TableStat;
 import tajo.conf.TajoConf;
 import tajo.engine.MasterWorkerProtos.Fetch;
 import tajo.engine.MasterWorkerProtos.Partition;
-import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.engine.exception.InternalException;
 import tajo.engine.exception.UnfinishedTaskException;
@@ -126,7 +126,7 @@ public class Task implements Runnable {
     // for localizing the intermediate data
     localize(request);
 
-    context.setStatus(QueryStatus.QUERY_INITED);
+    context.setState(TaskAttemptState.TA_PENDING);
     LOG.info("==================================");
     LOG.info("* Subquery " + request.getId() + " is initialized");
     LOG.info("* InterQuery: " + interQuery
@@ -203,16 +203,16 @@ public class Task implements Runnable {
     return context.getTaskId();
   }
 
-  public QueryStatus getStatus() {
-    return context.getStatus();
+  public TaskAttemptState getStatus() {
+    return context.getState();
   }
 
   public String toString() {
     return "queryId: " + this.getId() + " status: " + this.getStatus();
   }
 
-  public void setStatus(QueryStatus status) {
-    context.setStatus(status);
+  public void setState(TaskAttemptState status) {
+    context.setState(status);
     setProgressFlag();
   }
 
@@ -229,14 +229,14 @@ public class Task implements Runnable {
   public void kill() {
     killed = true;
     context.stop();
-    context.setStatus(QueryStatus.QUERY_KILLED);
+    context.setState(TaskAttemptState.TA_KILLED);
     setProgressFlag();
   }
 
   public void cleanUp() {
     // remove itself from worker
     // 끝난건지 확인
-    if (context.getStatus() == QueryStatus.QUERY_FINISHED) {
+    if (context.getState() == TaskAttemptState.TA_SUCCEEDED) {
       try {
         // context.getWorkDir() 지우기
         localFS.delete(new Path(context.getWorkDir().getAbsolutePath()), true);
@@ -249,15 +249,14 @@ public class Task implements Runnable {
       }
     } else {
       LOG.error(new UnfinishedTaskException("QueryUnitAttemptId: "
-          + context.getTaskId() + " status: " + context.getStatus()));
+          + context.getTaskId() + " status: " + context.getState()));
     }
   }
 
   public TaskStatusProto getReport() {
     TaskStatusProto.Builder builder = TaskStatusProto.newBuilder();
     builder.setId(context.getTaskId().getProto())
-        .setProgress(context.getProgress())
-        .setStatus(context.getStatus());
+        .setProgress(context.getProgress()).setState(context.getState());
 
 /*      if (context.getStatSet(ExprType.STORE.toString()) != null) {
         builder.setStats(context.getStatSet(ExprType.STORE.toString()).getProto());
@@ -270,7 +269,7 @@ public class Task implements Runnable {
 
     String dataServerURL = workerContext.getDataServerURL();
 
-    if (context.getStatus() == QueryStatus.QUERY_FINISHED && interQuery) {
+    if (context.getState() == TaskAttemptState.TA_SUCCEEDED && interQuery) {
       Iterator<Entry<Integer,String>> it = context.getRepartitions();
       if (it.hasNext()) {
         do {
@@ -310,10 +309,8 @@ public class Task implements Runnable {
   @Override
   public void run() {
     try {
-      context.setStatus(QueryStatus.QUERY_INPROGRESS);
+      context.setState(TaskAttemptState.TA_RUNNING);
       setProgressFlag();
-      LOG.info("Query status of " + context.getTaskId() + " is changed to " +
-          getStatus());
 
       if (context.hasFetchPhase()) {
         // If the fetch is still in progress, the query unit must wait for
@@ -337,15 +334,13 @@ public class Task implements Runnable {
       finished = true;
       if (killed || aborted) {
         context.setProgress(0.0f);
-        QueryStatus failedStatus = null;
+        TaskAttemptState failedStatus = null;
         if (killed) {
-          failedStatus = QueryStatus.QUERY_KILLED;
+          failedStatus = TaskAttemptState.TA_KILLED;
         } else if (aborted) {
-          failedStatus = QueryStatus.QUERY_ABORTED;
+          failedStatus = TaskAttemptState.TA_FAILED;
         }
-        context.setStatus(failedStatus);
-        LOG.info("Query status of " + context.getTaskId() + " is changed to "
-            + failedStatus);
+        context.setState(failedStatus);
       } else { // if successful
         context.setProgress(1.0f);
         if (interQuery) { // TODO - to be completed
@@ -371,9 +366,7 @@ public class Task implements Runnable {
           LOG.info("Worker starts to serve as HTTP data server for "
               + getId());
         }
-        context.setStatus(QueryStatus.QUERY_FINISHED);
-        LOG.info("Query status of " + context.getTaskId() + " is changed to "
-            + QueryStatus.QUERY_FINISHED);
+        context.setState(TaskAttemptState.TA_SUCCEEDED);
       }
 
       setProgressFlag();

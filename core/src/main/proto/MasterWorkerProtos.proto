@@ -6,20 +6,10 @@ option java_generate_equals_and_hash = true;
 import "CatalogProtos.proto";
 import "tajo_protos.proto";
 
-enum QueryStatus {
-  QUERY_INITED = 0;
-  QUERY_FETCHING = 1;
-  QUERY_PENDING = 2;
-  QUERY_INPROGRESS = 3;
-  QUERY_FINISHED = 4;
-  QUERY_KILLED = 5;
-  QUERY_ABORTED = 6;
-}
-
 message TaskStatusProto {
   required QueryUnitAttemptIdProto id = 1;
     required float progress = 2;
-    required QueryStatus status = 3;
+    required TaskAttemptState state = 3;
     optional StatSetProto stats = 4;
     optional TableStatProto resultStats = 5;
     repeated Partition partitions = 6;
@@ -42,7 +32,7 @@ message Fetch {
 
 message QueryUnitResponseProto {
     required string id = 1;
-    required QueryStatus status = 2;
+    required QueryState status = 2;
 }
 
 message StatusReportProto {

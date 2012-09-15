@@ -24,12 +24,12 @@ import org.apache.hadoop.conf.Configuration;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.*;
 import tajo.catalog.proto.CatalogProtos.DataType;
 import tajo.catalog.proto.CatalogProtos.StoreType;
 import tajo.datum.DatumFactory;
 import tajo.engine.ClientServiceProtos.ExecuteQueryRequest;
-import tajo.engine.MasterWorkerProtos.QueryStatus;
 import tajo.engine.cluster.QueryManager;
 import tajo.storage.Appender;
 import tajo.storage.StorageManager;
@@ -90,7 +90,7 @@ public class TestFaultTolerance {
 
   private void assertQueryResult(QueryManager qm) {
     Query q = qm.getQuery(query);
-    assertEquals(QueryStatus.QUERY_FINISHED,
+    assertEquals(TaskAttemptState.TA_SUCCEEDED,
         q.getState());
     SubQuery subQuery = q.getSubQueryIterator().next();
     QueryUnit[] queryUnits = subQuery.getQueryUnits();
@@ -98,10 +98,10 @@ public class TestFaultTolerance {
       for (int i = 0; i <= queryUnit.getRetryCount(); i++) {
         QueryUnitAttempt attempt = queryUnit.getAttempt(i);
         if (i == queryUnit.getRetryCount()) {
-          assertEquals(QueryStatus.QUERY_FINISHED,
+          assertEquals(TaskAttemptState.TA_SUCCEEDED,
               attempt.getState());
         } else {
-          assertEquals(QueryStatus.QUERY_ABORTED,
+          assertEquals(TaskAttemptState.TA_FAILED,
               attempt.getState());
         }
       }

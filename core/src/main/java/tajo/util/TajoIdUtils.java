@@ -23,7 +23,7 @@ import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.apache.hadoop.yarn.util.Records;
 import tajo.QueryId;
 import tajo.SubQueryId;
-import tajo.engine.TCommonProtos.SubQueryIdProto;
+import tajo.TajoProtos.SubQueryIdProto;
 import tajo.impl.pb.SubQueryIdPBImpl;
 
 /**
