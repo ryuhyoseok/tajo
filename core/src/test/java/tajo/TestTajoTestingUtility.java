@@ -112,6 +112,7 @@ public class TestTajoTestingUtility {
   @Test
   public final void test() throws Exception {
     AsyncDispatcher dispatcher = new AsyncDispatcher();
+    dispatcher.init(conf);
     dispatcher.start();
 
     Fragment[] frags = sm.split("employee", 40000);
@@ -178,5 +179,7 @@ public class TestTajoTestingUtility {
     assertFalse(leaf1.isAlive());
     assertFalse(leaf2.isAlive());
     assertFalse(leaf3.isAlive());
+
+    dispatcher.stop();
   }
 }

@@ -102,6 +102,7 @@ public class TestGlobalQueryPlanner {
     FileSystem fs = sm.getFileSystem();
 
     AsyncDispatcher dispatcher = new AsyncDispatcher();
+    dispatcher.init(conf);
     dispatcher.start();
 
     qm = new QueryManager();
@@ -138,6 +139,7 @@ public class TestGlobalQueryPlanner {
 
     QueryIdFactory.reset();
     queryId = QueryIdFactory.newQueryId();
+    dispatcher.stop();
   }
 
   @AfterClass

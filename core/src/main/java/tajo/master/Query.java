@@ -32,10 +32,7 @@ import tajo.QueryUnitId;
 import tajo.SubQueryId;
 import tajo.TajoProtos.QueryState;
 import tajo.engine.planner.global.MasterPlan;
-import tajo.master.event.QueryEvent;
-import tajo.master.event.QueryEventType;
-import tajo.master.event.SubQueryEvent;
-import tajo.master.event.SubQueryEventType;
+import tajo.master.event.*;
 import tajo.storage.StorageManager;
 
 import java.io.IOException;
@@ -227,6 +224,17 @@ public class Query implements EventHandler<QueryEvent> {
     @Override
     public QueryState transition(Query query, QueryEvent event) {
       query.completedSubQueryCount++;
+
+      SubQuery nextSubQuery = query.removeFromScheduleQueue();
+      if (nextSubQuery == null) {
+        return query.checkQueryForCompleted();
+      }
+
+      LOG.info("Schedule unit plan: \n" + nextSubQuery.getLogicalPlan());
+      nextSubQuery.handle(new SubQueryEvent(nextSubQuery.getId(),
+          SubQueryEventType.SQ_INIT));
+      nextSubQuery.handle(new SubQueryEvent(nextSubQuery.getId(),
+          SubQueryEventType.SQ_START));
 
       return query.checkQueryForCompleted();
     }
