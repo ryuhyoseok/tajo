@@ -100,7 +100,7 @@ public class ClusterManager extends AbstractService implements EventHandler<Work
   }
 
   public void stop() {
-
+    super.stop();
   }
 
   public WorkerInfo getWorkerInfo(String workerName) throws RemoteException,

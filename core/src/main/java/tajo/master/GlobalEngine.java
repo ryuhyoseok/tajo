@@ -62,8 +62,6 @@ public class GlobalEngine {
   private final MasterContext context;
   private final StorageManager sm;
 
-  private ClusterManager cm;
-
   private final QueryAnalyzer analyzer;
   private final LogicalPlanner planner;
   private final GlobalPlanner globalPlanner;
@@ -73,7 +71,6 @@ public class GlobalEngine {
       throws IOException {
     this.context = context;
     this.sm = sm;
-    this.cm = context.getClusterManager();
 
     analyzer = new QueryAnalyzer(context.getCatalog());
     planner = new LogicalPlanner(context.getCatalog());
@@ -182,11 +179,11 @@ public class GlobalEngine {
         new QueryEvent(query.getId(), QueryEventType.START));
   }
 
-  private void updateFragmentServingInfo(PlanningContext context)
+  private void updateFragmentServingInfo(PlanningContext planningContext)
       throws IOException {
-    cm.updateOnlineWorker();
-    for (String table : context.getParseTree().getAllTableNames()) {
-      cm.updateFragmentServingInfo2(table);
+    context.getClusterManager().updateOnlineWorker();
+    for (String table : planningContext.getParseTree().getAllTableNames()) {
+      context.getClusterManager().updateFragmentServingInfo2(table);
     }
   }
 }
