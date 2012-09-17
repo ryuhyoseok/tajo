@@ -32,7 +32,6 @@ import tajo.catalog.TCatUtil;
 import tajo.catalog.TableDesc;
 import tajo.catalog.TableMeta;
 import tajo.catalog.statistics.TableStat;
-import tajo.engine.cluster.ClusterManager;
 import tajo.engine.exception.EmptyClusterException;
 import tajo.engine.exception.IllegalQueryStatusException;
 import tajo.engine.exception.NoSuchQueryIdException;

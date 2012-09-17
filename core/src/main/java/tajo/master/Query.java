@@ -20,18 +20,29 @@
 
 package tajo.master;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.state.*;
 import tajo.QueryId;
 import tajo.QueryUnitId;
 import tajo.SubQueryId;
 import tajo.TajoProtos.QueryState;
+import tajo.catalog.TCatUtil;
+import tajo.catalog.TableMeta;
+import tajo.catalog.proto.CatalogProtos.StoreType;
+import tajo.catalog.statistics.ColumnStat;
+import tajo.catalog.statistics.TableStat;
+import tajo.engine.json.GsonCreator;
 import tajo.engine.planner.global.MasterPlan;
+import tajo.engine.planner.logical.ExprType;
+import tajo.engine.planner.logical.IndexWriteNode;
+import tajo.index.IndexUtil;
 import tajo.master.event.*;
 import tajo.storage.StorageManager;
 
@@ -209,7 +220,7 @@ public class Query implements EventHandler<QueryEvent> {
 
     @Override
     public void transition(Query query, QueryEvent queryEvent) {
-      SubQuery subQuery = query.removeFromScheduleQueue();
+      SubQuery subQuery = query.takeSubQuery();
       LOG.info("Schedule unit plan: \n" + subQuery.getLogicalPlan());
       subQuery.handle(new SubQueryEvent(subQuery.getId(),
           SubQueryEventType.SQ_INIT));
@@ -225,7 +236,12 @@ public class Query implements EventHandler<QueryEvent> {
     public QueryState transition(Query query, QueryEvent event) {
       query.completedSubQueryCount++;
 
-      SubQuery nextSubQuery = query.removeFromScheduleQueue();
+      if (query.completedSubQueryCount == 7) {
+        LOG.info("Bug Point!");
+      }
+
+      SubQuery nextSubQuery = query.takeSubQuery();
+
       if (nextSubQuery == null) {
         return query.checkQueryForCompleted();
       }
@@ -236,7 +252,8 @@ public class Query implements EventHandler<QueryEvent> {
       nextSubQuery.handle(new SubQueryEvent(nextSubQuery.getId(),
           SubQueryEventType.SQ_START));
 
-      return query.checkQueryForCompleted();
+      QueryState state = query.checkQueryForCompleted();
+      return state;
     }
   }
 
@@ -276,6 +293,47 @@ public class Query implements EventHandler<QueryEvent> {
 
   public void schedule(SubQuery subQuery) {
     scheduleQueue.add(subQuery);
+  }
+
+  private SubQuery takeSubQuery() {
+    SubQuery unit = removeFromScheduleQueue();
+    if (unit == null) {
+      return null;
+    }
+    List<SubQuery> pended = new ArrayList<>();
+    Priority priority = unit.getPriority();
+    do {
+      if (isReady(unit)) {
+        break;
+      } else {
+        pended.add(unit);
+      }
+      unit = removeFromScheduleQueue();
+      if (unit == null) {
+        scheduleQueue.addAll(pended);
+        return null;
+      }
+    } while (priority.equals(unit.getPriority()));
+    if (!priority.equals(unit.getPriority())) {
+      pended.add(unit);
+      unit = null;
+    }
+    scheduleQueue.addAll(pended);
+    return unit;
+  }
+
+  private boolean isReady(SubQuery subQuery) {
+    if (subQuery.hasChildQuery()) {
+      for (SubQuery child : subQuery.getChildQueries()) {
+        if (child.getState() !=
+            SubQueryState.SUCCEEDED) {
+          return false;
+        }
+      }
+      return true;
+    } else {
+      return true;
+    }
   }
 
   private SubQuery removeFromScheduleQueue() {

@@ -34,6 +34,7 @@ import tajo.catalog.Schema;
 import tajo.catalog.TCatUtil;
 import tajo.catalog.TableMeta;
 import tajo.catalog.proto.CatalogProtos.StoreType;
+import tajo.catalog.statistics.ColumnStat;
 import tajo.catalog.statistics.StatisticsUtil;
 import tajo.catalog.statistics.TableStat;
 import tajo.engine.MasterWorkerProtos.CommandType;
@@ -364,17 +365,28 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
     public SubQueryState transition(SubQuery subQuery,
                            SubQueryEvent subQueryEvent) {
       try {
-        initOutputDir(subQuery.getStorageManager(), subQuery.getOutputName(),
-            subQuery.getOutputType());
+        if (subQuery.hasUnionPlan()) {
+          try {
+            subQuery.finishUnionUnit();
+            subQuery.eventHandler.handle(new QuerySubQueryEvent(subQuery.getId(),
+                QueryEventType.SUBQUERY_COMPLETED));
+            return SubQueryState.SUCCEEDED;
+          } catch (IOException e) {
+            LOG.error(e);
+          }
+        } else {
+          initOutputDir(subQuery.getStorageManager(), subQuery.getOutputName(),
+              subQuery.getOutputType());
 
-        int numTasks = subQuery.getPlanner().getTaskNum(subQuery);
-        QueryUnit[] tasks = subQuery.getPlanner().localize(subQuery, numTasks);
+          int numTasks = subQuery.getPlanner().getTaskNum(subQuery);
+          QueryUnit[] tasks = subQuery.getPlanner().localize(subQuery, numTasks);
 
-        for (QueryUnit task : tasks) {
-          subQuery.addTask(task);
+
+          for (QueryUnit task : tasks) {
+            subQuery.addTask(task);
+          }
+          LOG.info("Create " + tasks.length + " Tasks");
         }
-        LOG.info("Create " + tasks.length + " Tasks");
-
         return  SubQueryState.INIT;
       } catch (Exception e) {
         LOG.warn("SubQuery (" + subQuery.getId() + ") failed", e);
@@ -412,8 +424,18 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
     @Override
     public void transition(SubQuery subQuery,
                            SubQueryEvent subQueryEvent) {
-      for (QueryUnitId taskId : subQuery.tasks.keySet()) {
-        eventHandler.handle(new TaskEvent(taskId, TaskEventType.T_SCHEDULE));
+
+      // if there is no tasks
+      if (subQuery.tasks.size() == 0) {
+        subQuery.eventHandler.handle(new QuerySubQueryEvent(subQuery.getId(),
+            QueryEventType.SUBQUERY_COMPLETED));
+        eventHandler.handle(new SubQueryEvent(subQuery.getId(),
+            SubQueryEventType.SQ_SUBQUERY_COMPLETED));
+        return;
+      } else {
+        for (QueryUnitId taskId : subQuery.tasks.keySet()) {
+          eventHandler.handle(new TaskEvent(taskId, TaskEventType.T_SCHEDULE));
+        }
       }
     }
   }
@@ -549,5 +571,38 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
     finally {
       writeLock.unlock();
     }
+  }
+
+  private void finishUnionUnit() throws IOException {
+    // write meta and continue
+    TableStat stat = generateUnionStat(this);
+    setStats(stat);
+    writeStat(this, stat);
+    //unit.setState(QueryStatus.QUERY_FINISHED);
+  }
+
+  private TableStat generateUnionStat(SubQuery unit) {
+    TableStat stat = new TableStat();
+    TableStat childStat;
+    long avgRows = 0, numBytes = 0, numRows = 0;
+    int numBlocks = 0, numPartitions = 0;
+    List<ColumnStat> columnStats = Lists.newArrayList();
+
+    for (SubQuery child : unit.getChildQueries()) {
+      childStat = child.getStats();
+      avgRows += childStat.getAvgRows();
+      columnStats.addAll(childStat.getColumnStats());
+      numBlocks += childStat.getNumBlocks();
+      numBytes += childStat.getNumBytes();
+      numPartitions += childStat.getNumPartitions();
+      numRows += childStat.getNumRows();
+    }
+    stat.setColumnStats(columnStats);
+    stat.setNumBlocks(numBlocks);
+    stat.setNumBytes(numBytes);
+    stat.setNumPartitions(numPartitions);
+    stat.setNumRows(numRows);
+    stat.setAvgRows(avgRows);
+    return stat;
   }
 }

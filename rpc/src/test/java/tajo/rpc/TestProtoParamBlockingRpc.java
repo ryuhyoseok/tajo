@@ -11,29 +11,23 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class TestProtoParamBlockingRpc {
+  private static boolean CALLED = false;
 
   public static String MESSAGE = TestProtoParamBlockingRpc.class.getName();
   NettyRpcServer server;
-  DummyClientInterface proxy;
+  DummyProtocol proxy;
 
   // !. Write Interface and implement class according to communication way
-  public static interface DummyServerInterface {
+  public static interface DummyProtocol {
     public MulResponse mul(MulRequest1 req1);
 
-    public void nullParameterTest(NullProto proto);
+    public void noReturnMethod(NullProto proto);
   }
 
-  public static interface DummyClientInterface {
-    public void throwException(MulRequest1 request) throws RemoteException;
-
-    public MulResponse mul(MulRequest1 req1) throws RemoteException;
-
-    public void nullParameterTest(NullProto proto) throws RemoteException;
-  }
-
-  public static class DummyServer implements DummyServerInterface {
+  public static class DummyServer implements DummyProtocol {
     @Override
     public MulResponse mul(MulRequest1 req1) {
       int x1_1 = req1.getX1();
@@ -46,7 +40,8 @@ public class TestProtoParamBlockingRpc {
       return rst;
     }
 
-    public void nullParameterTest(NullProto proto) {
+    public void noReturnMethod(NullProto proto) {
+      CALLED = true;
     }
   }
 
@@ -54,7 +49,7 @@ public class TestProtoParamBlockingRpc {
   public void setUp() throws Exception {
     // 2. Write Server Part source code
     server = NettyRpc.getProtoParamRpcServer(new DummyServer(),
-        DummyServerInterface.class, new InetSocketAddress(0));
+        DummyProtocol.class, new InetSocketAddress(0));
     server.start();
 
     InetSocketAddress addr = server.getBindAddress();
@@ -62,8 +57,8 @@ public class TestProtoParamBlockingRpc {
 
     // 3. Write client Part source code
     // 3.1 Make Proxy to make connection to server
-    proxy = (DummyClientInterface) NettyRpc.getProtoParamBlockingRpcProxy(
-        DummyClientInterface.class, addr);
+    proxy = (DummyProtocol) NettyRpc.getProtoParamBlockingRpcProxy(
+        DummyProtocol.class, addr);
   }
 
   @After
@@ -80,13 +75,8 @@ public class TestProtoParamBlockingRpc {
     MulResponse re = proxy.mul(req1);
     assertEquals(200, re.getResult1());
     assertEquals(400, re.getResult2());
-  }
 
-  @Test
-  public void testNullParameter() throws Exception {
-    NullProto np = NullProto.newBuilder().build();
-
-    // 3.3 call procedure
-    proxy.nullParameterTest(np);
+    proxy.noReturnMethod(NullProto.newBuilder().build());
+    assertTrue(CALLED);
   }
 }
