@@ -52,7 +52,6 @@ import tajo.engine.planner.logical.*;
 import tajo.engine.utils.TupleUtil;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.master.SubQuery.PARTITION_TYPE;
-import tajo.master.TajoMaster.MasterContext;
 import tajo.storage.StorageManager;
 import tajo.storage.TupleRange;
 import tajo.util.TajoIdUtils;
@@ -75,13 +74,15 @@ public class GlobalPlanner {
   private EventHandler eventHandler;
   private ClusterManager cm;
 
-  public GlobalPlanner(final MasterContext context, StorageManager sm)
+  public GlobalPlanner(final TajoConf conf, final CatalogService catalog,
+                       final ClusterManager cm, final StorageManager sm,
+                       final EventHandler eventHandler)
       throws IOException {
-    this.conf = context.getConf();
+    this.conf = conf;
     this.sm = sm;
-    this.catalog = context.getCatalog();
-    this.eventHandler = context.getEventHandler();
-    this.cm = context.getClusterManager();
+    this.catalog = catalog;
+    this.eventHandler = eventHandler;
+    this.cm = cm;
   }
 
   /**

@@ -55,6 +55,7 @@ import tajo.storage.StorageUtil;
 
 import java.io.IOException;
 
+@SuppressWarnings("unchecked")
 public class GlobalEngine {
   /** Class Logger */
   private final static Log LOG = LogFactory.getLog(GlobalEngine.class);
@@ -74,7 +75,8 @@ public class GlobalEngine {
 
     analyzer = new QueryAnalyzer(context.getCatalog());
     planner = new LogicalPlanner(context.getCatalog());
-    globalPlanner = new GlobalPlanner(context, sm);
+    globalPlanner = new GlobalPlanner(context.getConf(), context.getCatalog(),
+        context.getClusterManager(), sm, context.getEventHandler());
     globalOptimizer = new GlobalOptimizer();
   }
 

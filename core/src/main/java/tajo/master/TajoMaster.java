@@ -207,7 +207,7 @@ public class TajoMaster extends CompositeService implements ClientService {
       addIfService(clusterManager);
       dispatcher.register(WorkerEventType.class, this.clusterManager);
 
-      this.queryEngine = new GlobalEngine(context, qm, storeManager);
+      this.queryEngine = new GlobalEngine(context, storeManager);
 
       this.scheduler = new DefaultScheduler(context);
       dispatcher.register(SchedulerEventType.class, this.scheduler);

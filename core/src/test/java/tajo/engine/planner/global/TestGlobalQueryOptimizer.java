@@ -99,7 +99,8 @@ public class TestGlobalQueryOptimizer {
     AsyncDispatcher dispatcher = new AsyncDispatcher();
 
     qm = new QueryManager();
-    planner = new GlobalPlanner(conf, new StorageManager(conf), qm, catalog, dispatcher.getEventHandler(), null);
+    planner = new GlobalPlanner(conf, catalog, null, new StorageManager(conf),
+        dispatcher.getEventHandler());
     analyzer = new QueryAnalyzer(catalog);
     logicalPlanner = new LogicalPlanner(catalog);
 
@@ -149,7 +150,7 @@ public class TestGlobalQueryOptimizer {
 
     MasterPlan globalPlan = planner.build(queryId,
         (LogicalRootNode) plan);
-    globalPlan = optimizer.optimize(globalPlan.getRoot());
+    globalPlan = optimizer.optimize(globalPlan);
     
     SubQuery unit = globalPlan.getRoot();
     StoreTableNode store = unit.getStoreTableNode();

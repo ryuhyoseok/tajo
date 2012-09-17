@@ -102,11 +102,12 @@ public class TestGlobalQueryPlanner {
     FileSystem fs = sm.getFileSystem();
 
     AsyncDispatcher dispatcher = new AsyncDispatcher();
+    dispatcher.init(conf);
     dispatcher.start();
 
     qm = new QueryManager();
-    planner = new GlobalPlanner(conf, new StorageManager(conf), qm, catalog,
-        dispatcher.getEventHandler(), null);
+    planner = new GlobalPlanner(conf, catalog, null, new StorageManager(conf),
+        dispatcher.getEventHandler());
     analyzer = new QueryAnalyzer(catalog);
     logicalPlanner = new LogicalPlanner(catalog);
 
@@ -138,6 +139,7 @@ public class TestGlobalQueryPlanner {
 
     QueryIdFactory.reset();
     queryId = QueryIdFactory.newQueryId();
+    dispatcher.stop();
   }
 
   @AfterClass
