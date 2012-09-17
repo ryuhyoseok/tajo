@@ -105,8 +105,8 @@ public class TestGlobalQueryPlanner {
     dispatcher.start();
 
     qm = new QueryManager();
-    planner = new GlobalPlanner(conf, new StorageManager(conf), qm, catalog,
-        dispatcher.getEventHandler(), null);
+    planner = new GlobalPlanner(conf, catalog, null, new StorageManager(conf),
+        dispatcher.getEventHandler());
     analyzer = new QueryAnalyzer(catalog);
     logicalPlanner = new LogicalPlanner(catalog);
 
