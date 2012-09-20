@@ -233,6 +233,12 @@ public class Task implements Runnable {
     setProgressFlag();
   }
 
+  public void abort() {
+    aborted = true;
+    context.stop();
+    context.setState(TaskAttemptState.TA_FAILED);
+  }
+
   public void cleanUp() {
     // remove itself from worker
     // 끝난건지 확인
