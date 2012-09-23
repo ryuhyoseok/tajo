@@ -26,6 +26,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.statistics.TableStat;
+import tajo.conf.TajoConf;
 import tajo.ipc.protocolrecords.Fragment;
 
 import java.io.File;
@@ -40,9 +41,8 @@ import java.util.concurrent.CountDownLatch;
  */
 public class TaskAttemptContext {
   private static final Log LOG = LogFactory.getLog(TaskAttemptContext.class);
-
-  private final Map<String, List<Fragment>> fragmentMap
-    = new HashMap<String, List<Fragment>>();
+  private final TajoConf conf;
+  private final Map<String, List<Fragment>> fragmentMap = new HashMap<>();
   
   private TaskAttemptState state;
   private TableStat resultStats;
@@ -56,9 +56,10 @@ public class TaskAttemptContext {
   private boolean stopped = false;
   private boolean interQuery = false;
 
-  public TaskAttemptContext(final QueryUnitAttemptId queryId,
+  public TaskAttemptContext(TajoConf conf, final QueryUnitAttemptId queryId,
                      final Fragment[] fragments,
                      final File workDir) {
+    this.conf = conf;
     this.queryId = queryId;
     
     for(Fragment t : fragments) {
@@ -75,6 +76,10 @@ public class TaskAttemptContext {
     this.repartitions = Maps.newHashMap();
     
     state = TaskAttemptState.TA_PENDING;
+  }
+
+  public TajoConf getConf() {
+    return this.conf;
   }
   
   public TaskAttemptState getState() {
