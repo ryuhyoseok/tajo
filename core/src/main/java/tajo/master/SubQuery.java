@@ -37,7 +37,6 @@ import tajo.catalog.proto.CatalogProtos.StoreType;
 import tajo.catalog.statistics.ColumnStat;
 import tajo.catalog.statistics.StatisticsUtil;
 import tajo.catalog.statistics.TableStat;
-import tajo.engine.MasterWorkerProtos.CommandType;
 import tajo.engine.json.GsonCreator;
 import tajo.engine.planner.logical.*;
 import tajo.index.IndexUtil;
@@ -91,11 +90,8 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
           SubQueryEventType, SubQueryEvent> (SubQueryState.NEW)
 
       .addTransition(SubQueryState.NEW,
-          EnumSet.of(SubQueryState.INIT, SubQueryState.FAILED),
+          EnumSet.of(SubQueryState.RUNNING, SubQueryState.FAILED, SubQueryState.SUCCEEDED),
           SubQueryEventType.SQ_INIT, new InitTransition())
-
-      .addTransition(SubQueryState.INIT, SubQueryState.RUNNING,
-          SubQueryEventType.SQ_START, new StartTransition())
 
       .addTransition(SubQueryState.RUNNING, SubQueryState.RUNNING,
           SubQueryEventType.SQ_TASK_COMPLETED, new TaskCompletedTransition())
@@ -104,7 +100,7 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
           SubQueryEventType.SQ_SUBQUERY_COMPLETED, new SubQueryCompleteTransition())
 
       .addTransition(SubQueryState.RUNNING, SubQueryState.FAILED,
-          SubQueryEventType.SQ_ABORT, new InternalErrorTransition());
+          SubQueryEventType.SQ_FAILED, new InternalErrorTransition());
 
   private final Lock readLock;
   private final Lock writeLock;
@@ -114,8 +110,8 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
   public SubQuery(SubQueryId id, EventHandler eventHandler, StorageManager sm,
                   GlobalPlanner planner) {
     this.id = id;
-    prevs = new HashMap<ScanNode, SubQuery>();
-    scanlist = new ArrayList<ScanNode>();
+    prevs = new HashMap<>();
+    scanlist = new ArrayList<>();
     hasJoinPlan = false;
     hasUnionPlan = false;
     this.eventHandler = eventHandler;
@@ -368,9 +364,9 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
         if (subQuery.hasUnionPlan()) {
           try {
             subQuery.finishUnionUnit();
-            subQuery.eventHandler.handle(new QuerySubQueryEvent(subQuery.getId(),
-                QueryEventType.SUBQUERY_COMPLETED));
-            return SubQueryState.SUCCEEDED;
+            subQuery.eventHandler.handle(new SubQueryEvent(subQuery.getId(),
+                SubQueryEventType.SQ_SUBQUERY_COMPLETED));
+            return SubQueryState.RUNNING;
           } catch (IOException e) {
             LOG.error(e);
           }
@@ -386,8 +382,19 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
             subQuery.addTask(task);
           }
           LOG.info("Create " + tasks.length + " Tasks");
+
+          // if there is no tasks
+          if (subQuery.tasks.size() == 0) {
+            subQuery.eventHandler.handle(new SubQueryEvent(subQuery.getId(),
+                SubQueryEventType.SQ_SUBQUERY_COMPLETED));
+            return SubQueryState.RUNNING;
+          } else {
+            for (QueryUnitId taskId : subQuery.tasks.keySet()) {
+              subQuery.eventHandler.handle(new TaskEvent(taskId, TaskEventType.T_SCHEDULE));
+            }
+          }
         }
-        return  SubQueryState.INIT;
+        return  SubQueryState.RUNNING;
       } catch (Exception e) {
         LOG.warn("SubQuery (" + subQuery.getId() + ") failed", e);
         return SubQueryState.FAILED;
@@ -412,30 +419,6 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
             LOG.info("Table path " + sm.getTablePath(outputName).toString()
                 + " is initialized for " + outputName);
           }
-      }
-    }
-  }
-
-
-
-  class StartTransition implements
-      SingleArcTransition<SubQuery, SubQueryEvent> {
-
-    @Override
-    public void transition(SubQuery subQuery,
-                           SubQueryEvent subQueryEvent) {
-
-      // if there is no tasks
-      if (subQuery.tasks.size() == 0) {
-        subQuery.eventHandler.handle(new QuerySubQueryEvent(subQuery.getId(),
-            QueryEventType.SUBQUERY_COMPLETED));
-        eventHandler.handle(new SubQueryEvent(subQuery.getId(),
-            SubQueryEventType.SQ_SUBQUERY_COMPLETED));
-        return;
-      } else {
-        for (QueryUnitId taskId : subQuery.tasks.keySet()) {
-          eventHandler.handle(new TaskEvent(taskId, TaskEventType.T_SCHEDULE));
-        }
       }
     }
   }
@@ -468,16 +451,25 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
       // TODO - records succeeded, failed, killed completed task
       // TODO - records metrics
 
-      TableStat stat = subQuery.generateStat(subQuery);
-      try {
-        subQuery.writeStat(subQuery, stat);
-      } catch (IOException e) {
-      }
-      subQuery.setStats(stat);
+      if (subQuery.hasUnionPlan()) {
+        try {
+          subQuery.finishUnionUnit();
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      } else {
+        TableStat stat = subQuery.generateStat(subQuery);
+        try {
+          subQuery.writeStat(subQuery, stat);
+        } catch (IOException e) {
+        }
+        subQuery.setStats(stat);
 
-      for (QueryUnit unit : subQuery.getQueryUnits()) {
-        //sendCommand(unit.getLastAttempt(), CommandType.FINALIZE);
+        for (QueryUnit unit : subQuery.getQueryUnits()) {
+          //sendCommand(unit.getLastAttempt(), CommandType.FINALIZE);
+        }
       }
+
       subQuery.eventHandler.handle(new QuerySubQueryEvent(subQuery.getId(),
           QueryEventType.SUBQUERY_COMPLETED));
     }
@@ -563,7 +555,7 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
 
       //notify the eventhandler of state change
       if (oldState != getState()) {
-        LOG.info(id + "Job Transitioned from " + oldState + " to "
+        LOG.info(id + " Job Transitioned from " + oldState + " to "
             + getState());
       }
     }

@@ -99,13 +99,8 @@ public class GlobalPlanner {
     String outputTableName = null;
     if (rootNode.getSubNode().getType() == ExprType.STORE) {
       // create table queries are executed by the master
-      StoreTableNode stn = (StoreTableNode) rootNode.getSubNode();
-      outputTableName = stn.getTableName();
-
-      TableDesc desc = TCatUtil.newTableDesc(stn.getTableName(),
-          sm.getTableMeta(outputTableName),
-          sm.getTablePath(outputTableName));
-      catalog.addTable(desc);
+      StoreTableNode storeTableNode = (StoreTableNode) rootNode.getSubNode();
+      outputTableName = storeTableNode.getTableName();
     }
 
     // insert store at the subnode of the root

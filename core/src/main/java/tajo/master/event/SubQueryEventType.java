@@ -29,7 +29,7 @@ public enum SubQueryEventType {
 
   // Producer: QueryUnit
   SQ_TASK_COMPLETED,
-  SQ_ABORT,
+  SQ_FAILED,
 
   // Producer: Completed
   SQ_SUBQUERY_COMPLETED,

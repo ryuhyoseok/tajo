@@ -110,11 +110,11 @@ public class TestGlobalEngine {
     sm = master.getStorageManager();
 
     catalog = master.getCatalog();
-    groupbyResult = new HashMap<CompositeKey, Integer>();
-    cubebyResult = new HashMap<CompositeKey, Integer>();
-    scanResult = new HashSet<String>();
-    joinResult = new HashMap<String, List<Integer>>();
-    selectAfterJoinResult = new HashMap<String, List<Integer>>();
+    groupbyResult = new HashMap<>();
+    cubebyResult = new HashMap<>();
+    scanResult = new HashSet<>();
+    joinResult = new HashMap<>();
+    selectAfterJoinResult = new HashMap<>();
 
     Schema scoreSchema = new Schema();
     scoreSchema.addColumn("deptname", DataType.STRING);
@@ -309,7 +309,7 @@ public class TestGlobalEngine {
     }
   }
 
-  //@Test TODO
+  @Test
   public void testCubeby() throws Exception {
     ExecuteQueryRequest.Builder builder
         = ExecuteQueryRequest.newBuilder();

@@ -20,30 +20,22 @@
 
 package tajo.master;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.state.*;
 import tajo.QueryId;
 import tajo.QueryUnitId;
 import tajo.SubQueryId;
 import tajo.TajoProtos.QueryState;
-import tajo.catalog.TCatUtil;
-import tajo.catalog.TableMeta;
-import tajo.catalog.proto.CatalogProtos.StoreType;
-import tajo.catalog.statistics.ColumnStat;
-import tajo.catalog.statistics.TableStat;
-import tajo.engine.json.GsonCreator;
 import tajo.engine.planner.global.MasterPlan;
-import tajo.engine.planner.logical.ExprType;
-import tajo.engine.planner.logical.IndexWriteNode;
-import tajo.index.IndexUtil;
-import tajo.master.event.*;
+import tajo.master.event.QueryEvent;
+import tajo.master.event.QueryEventType;
+import tajo.master.event.SubQueryEvent;
+import tajo.master.event.SubQueryEventType;
 import tajo.storage.StorageManager;
 
 import java.io.IOException;
@@ -224,8 +216,6 @@ public class Query implements EventHandler<QueryEvent> {
       LOG.info("Schedule unit plan: \n" + subQuery.getLogicalPlan());
       subQuery.handle(new SubQueryEvent(subQuery.getId(),
           SubQueryEventType.SQ_INIT));
-      subQuery.handle(new SubQueryEvent(subQuery.getId(),
-          SubQueryEventType.SQ_START));
     }
   }
 
@@ -246,12 +236,9 @@ public class Query implements EventHandler<QueryEvent> {
         return query.checkQueryForCompleted();
       }
 
-      LOG.info("Schedule unit plan: \n" + nextSubQuery.getLogicalPlan());
       nextSubQuery.handle(new SubQueryEvent(nextSubQuery.getId(),
           SubQueryEventType.SQ_INIT));
-      nextSubQuery.handle(new SubQueryEvent(nextSubQuery.getId(),
-          SubQueryEventType.SQ_START));
-
+      LOG.info("Schedule unit plan: \n" + nextSubQuery.getLogicalPlan());
       QueryState state = query.checkQueryForCompleted();
       return state;
     }
@@ -302,6 +289,7 @@ public class Query implements EventHandler<QueryEvent> {
     }
     List<SubQuery> pended = new ArrayList<>();
     Priority priority = unit.getPriority();
+
     do {
       if (isReady(unit)) {
         break;
@@ -314,6 +302,7 @@ public class Query implements EventHandler<QueryEvent> {
         return null;
       }
     } while (priority.equals(unit.getPriority()));
+
     if (!priority.equals(unit.getPriority())) {
       pended.add(unit);
       unit = null;

@@ -73,6 +73,9 @@ public class QueryUnitAttempt implements EventHandler<TaskAttemptEvent> {
           TaskAttemptEventType.TA_UPDATE,
           new StatusUpdateTransition())
 
+      .addTransition(TaskAttemptState.TA_SUCCEEDED, TaskAttemptState.TA_SUCCEEDED,
+          TaskAttemptEventType.TA_UPDATE)
+
       .installTopology();
 
   private final StateMachine<TaskAttemptState, TaskAttemptEventType, TaskAttemptEvent>
@@ -186,6 +189,13 @@ public class QueryUnitAttempt implements EventHandler<TaskAttemptEvent> {
               TaskEventType.T_ATTEMPT_SUCCEEDED));
 
           return TaskAttemptState.TA_SUCCEEDED;
+
+        case TA_FAILED:
+          taskAttempt.eventHandler.handle(
+              new TaskTAttemptEvent(updateEvent.getTaskAttemptId(),
+              TaskEventType.T_ATTEMPT_FAILED));
+
+          return TaskAttemptState.TA_FAILED;
         default:
           return taskAttempt.getState();
       }

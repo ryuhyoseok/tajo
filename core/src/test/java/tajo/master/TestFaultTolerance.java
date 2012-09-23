@@ -24,17 +24,20 @@ import org.apache.hadoop.conf.Configuration;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import tajo.QueryId;
+import tajo.TajoProtos.QueryState;
 import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.*;
 import tajo.catalog.proto.CatalogProtos.DataType;
 import tajo.catalog.proto.CatalogProtos.StoreType;
 import tajo.datum.DatumFactory;
 import tajo.engine.ClientServiceProtos.ExecuteQueryRequest;
-import tajo.engine.cluster.QueryManager;
 import tajo.storage.Appender;
 import tajo.storage.StorageManager;
 import tajo.storage.Tuple;
 import tajo.storage.VTuple;
+
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
@@ -52,7 +55,7 @@ public class TestFaultTolerance {
 
   @BeforeClass
   public static void setup() throws Exception {
-    cluster = new MockupCluster(6, 0, 4);
+    cluster = new MockupCluster(4, 1, 1);
     conf = cluster.getConf();
 
     cluster.start();
@@ -88,10 +91,9 @@ public class TestFaultTolerance {
     cluster.shutdown();
   }
 
-  private void assertQueryResult(QueryManager qm) {
-    Query q = qm.getQuery(query);
-    assertEquals(TaskAttemptState.TA_SUCCEEDED,
-        q.getState());
+  private void assertQueryResult(Map<QueryId, Query> queries) {
+    Query q = queries.entrySet().iterator().next().getValue();
+    assertEquals(QueryState.QUERY_SUCCEEDED, q.getState());
     SubQuery subQuery = q.getSubQueryIterator().next();
     QueryUnit[] queryUnits = subQuery.getQueryUnits();
     for (QueryUnit queryUnit : queryUnits) {
@@ -110,12 +112,11 @@ public class TestFaultTolerance {
 
   @Test
   public void testAbort() throws Exception {
-//    Thread.sleep(3000);
     TajoMaster master = cluster.getMaster();
     master.executeQuery(queryRequestBuilder.build());
 
-    QueryManager qm = master.getQueryManager();
-    assertQueryResult(qm);
+    Map<QueryId, Query> queries = master.getContext().getAllQueries();
+    assertQueryResult(queries);
   }
 
   public void testDeadWorker() throws Exception {

@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import tajo.QueryId;
 import tajo.TajoTestingUtility;
 import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
@@ -68,6 +69,10 @@ public class MockupCluster {
 
   public TajoMaster getMaster() {
     return this.master;
+  }
+
+  public Query getQuery(QueryId queryId) {
+    return this.master.getContext().getQuery(queryId);
   }
 
   public List<MockupWorker> getWorkers() {

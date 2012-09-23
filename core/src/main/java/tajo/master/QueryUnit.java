@@ -26,10 +26,7 @@ import com.google.common.collect.Sets;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
-import org.apache.hadoop.yarn.state.SingleArcTransition;
-import org.apache.hadoop.yarn.state.StateMachine;
-import org.apache.hadoop.yarn.state.StateMachineFactory;
+import org.apache.hadoop.yarn.state.*;
 import tajo.QueryIdFactory;
 import tajo.QueryUnitAttemptId;
 import tajo.QueryUnitId;
@@ -65,10 +62,13 @@ public class QueryUnit implements EventHandler<TaskEvent> {
 	private TableStat stats;
 
   private Map<QueryUnitAttemptId, QueryUnitAttempt> attempts;
+  private final int maxAttempts = 3;
   private Integer lastAttemptId;
 
   private QueryUnitAttemptId successfulTaskAttempt;
+
   private int failedAttempts;
+  private int finishedAttempts;//finish are total of success, failed and killed
 
   private static final StateMachineFactory
       <QueryUnit, TaskState, TaskEventType, TaskEvent> stateMachineFactory =
@@ -83,6 +83,10 @@ public class QueryUnit implements EventHandler<TaskEvent> {
 
        .addTransition(TaskState.RUNNING, TaskState.SUCCEEDED,
            TaskEventType.T_ATTEMPT_SUCCEEDED, new AttemptSucceededTransition())
+
+        .addTransition(TaskState.RUNNING,
+            EnumSet.of(TaskState.RUNNING, TaskState.FAILED),
+            TaskEventType.T_ATTEMPT_FAILED, new AttemptFailedTransition())
 
       .installTopology();
   private final StateMachine<TaskState, TaskEventType, TaskEvent> stateMachine;
@@ -100,6 +104,7 @@ public class QueryUnit implements EventHandler<TaskEvent> {
     partitions = new ArrayList<Partition>();
     attempts = Collections.emptyMap();
     lastAttemptId = -1;
+    failedAttempts = 0;
 
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     this.readLock = readWriteLock.readLock();
@@ -273,7 +278,7 @@ public class QueryUnit implements EventHandler<TaskEvent> {
   }
 
   public QueryUnitAttempt getAttempt(int attempt) {
-    return this.attempts.get(attempt);
+    return this.attempts.get(new QueryUnitAttemptId(this.getId(), attempt));
   }
 
   public QueryUnitAttempt getLastAttempt() {
@@ -327,8 +332,36 @@ public class QueryUnit implements EventHandler<TaskEvent> {
     @Override
     public void transition(QueryUnit task,
                            TaskEvent event) {
+      TaskTAttemptEvent attemptEvent = (TaskTAttemptEvent) event;
+      task.successfulTaskAttempt = attemptEvent.getTaskAttemptId();
       task.eventHandler.handle(new SubQueryTaskEvent(event.getTaskId(),
           SubQueryEventType.SQ_TASK_COMPLETED));
+    }
+  }
+
+  private static class AttemptFailedTransition implements
+    MultipleArcTransition<QueryUnit, TaskEvent, TaskState> {
+
+    @Override
+    public TaskState transition(QueryUnit task, TaskEvent taskEvent) {
+      TaskTAttemptEvent attemptEvent = (TaskTAttemptEvent) taskEvent;
+      task.failedAttempts++;
+
+      QueryUnitAttempt attempt = task.getAttempt(attemptEvent.getTaskAttemptId());
+
+      task.finishedAttempts++;
+
+      if (task.failedAttempts < task.maxAttempts) {
+        if (task.successfulTaskAttempt == null) {
+          task.addAndScheduleAttempt();
+        }
+      } else {
+        task.eventHandler.handle(
+            new SubQueryTaskEvent(task.getId(), SubQueryEventType.SQ_FAILED));
+        return TaskState.FAILED;
+      }
+
+      return task.getState();
     }
   }
 

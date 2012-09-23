@@ -226,6 +226,10 @@ public class TajoMaster extends CompositeService implements ClientService {
     super.init(conf);
   }
 
+  public MasterContext getContext() {
+    return this.context;
+  }
+
   private class QueryEventDispatcher
       implements EventHandler<QueryEvent> {
     public void handle(QueryEvent event) {
