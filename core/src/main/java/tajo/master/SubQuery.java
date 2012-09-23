@@ -466,7 +466,7 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
         subQuery.setStats(stat);
 
         for (QueryUnit unit : subQuery.getQueryUnits()) {
-          //sendCommand(unit.getLastAttempt(), CommandType.FINALIZE);
+          // TODO - finalize finished taskAttempts
         }
       }
 

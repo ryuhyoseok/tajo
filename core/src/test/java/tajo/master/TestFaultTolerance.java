@@ -23,7 +23,6 @@ package tajo.master;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 import tajo.QueryId;
 import tajo.TajoProtos.QueryState;
 import tajo.TajoProtos.TaskAttemptState;
@@ -110,7 +109,7 @@ public class TestFaultTolerance {
     }
   }
 
-  @Test
+  //@Test
   public void testAbort() throws Exception {
     TajoMaster master = cluster.getMaster();
     master.executeQuery(queryRequestBuilder.build());

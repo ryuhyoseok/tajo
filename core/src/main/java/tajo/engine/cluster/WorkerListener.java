@@ -51,6 +51,7 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
   private String addr;
   private volatile boolean stopped = false;
   private AtomicInteger processed;
+  private AtomicInteger pinged;
   private Sleeper sleeper;
   
   public WorkerListener(final MasterContext context) {
@@ -68,6 +69,7 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
     this.bindAddr = rpcServer.getBindAddress();
     this.addr = bindAddr.getHostName() + ":" + bindAddr.getPort();
     processed = new AtomicInteger(0);
+    pinged = new AtomicInteger(0);
     sleeper = new Sleeper();
   }
   
@@ -108,6 +110,7 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
       QueryUnitAttemptId taskId = new QueryUnitAttemptId(pingId);
       context.getQuery(taskId.getQueryId()).getSubQuery(taskId.getSubQueryId()).
           getQueryUnit(taskId.getQueryUnitId()).getAttempt(taskId).resetExpireTime();
+      pinged.incrementAndGet();
     }
 
     return TRUE_PROTO;
@@ -119,8 +122,9 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
     try {
       while (!this.stopped) {
         processed.set(0);
+        pinged.set(0);
         sleeper.sleep(1000);
-        LOG.info("processed: " + processed);
+        LOG.info("processed: " + processed + ", pinged: " + pinged);
       }
     } catch (InterruptedException e) {
       LOG.error(ExceptionUtils.getFullStackTrace(e));

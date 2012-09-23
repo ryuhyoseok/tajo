@@ -24,4 +24,4 @@ bin=`cd "$bin"; pwd`
 . "$bin"/tajo-config.sh
 
 "$bin"/tajo-daemon.sh --config $TAJO_CONF_DIR stop master
-"$bin"/tajo-daemons.sh --config $TAJO_CONF_DIR stop leafserver
+"$bin"/tajo-daemons.sh --config $TAJO_CONF_DIR stop worker
