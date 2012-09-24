@@ -33,7 +33,6 @@ import tajo.catalog.CatalogService;
 import tajo.catalog.proto.CatalogProtos.TableDescProto;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto.Disk;
-import tajo.engine.cluster.event.WorkerEvent;
 import tajo.engine.exception.UnknownWorkerException;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.rpc.Callback;
@@ -43,7 +42,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-public class ClusterManager extends AbstractService implements EventHandler<WorkerEvent> {
+public class ClusterManager extends AbstractService {
   private final Log LOG = LogFactory.getLog(ClusterManager.class);
 
   private final Configuration conf;
@@ -244,10 +243,6 @@ public class ClusterManager extends AbstractService implements EventHandler<Work
     WorkerResource wr = getResource(workerName);
     wr.returnResource();
     updateResourcePool(wr);
-  }
-
-  @Override
-  public void handle(WorkerEvent workerEvent) {
   }
 
   public class WorkerInfo {

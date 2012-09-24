@@ -48,7 +48,6 @@ import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.ClientServiceProtos.*;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.engine.cluster.*;
-import tajo.engine.cluster.event.WorkerEventType;
 import tajo.master.event.*;
 import tajo.rpc.NettyRpc;
 import tajo.rpc.NettyRpcServer;
