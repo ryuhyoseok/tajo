@@ -143,7 +143,7 @@ public class ClusterManager extends AbstractService implements EventHandler<Work
       if (DNSNameToHostsMap.containsKey(DNSName)) {
         workers = DNSNameToHostsMap.get(DNSName);
       } else {
-        workers = new ArrayList<String>();
+        workers = new ArrayList<>();
       }
       workers.add(worker);
       workers.removeAll(failedWorkers);

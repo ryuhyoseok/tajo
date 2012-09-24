@@ -8,11 +8,11 @@ import "tajo_protos.proto";
 
 message TaskStatusProto {
   required QueryUnitAttemptIdProto id = 1;
-    required float progress = 2;
-    required TaskAttemptState state = 3;
-    optional StatSetProto stats = 4;
-    optional TableStatProto resultStats = 5;
-    repeated Partition partitions = 6;
+  required float progress = 2;
+  required TaskAttemptState state = 3;
+  optional StatSetProto stats = 4;
+  optional TableStatProto resultStats = 5;
+  repeated Partition partitions = 6;
 }
 
 message QueryUnitRequestProto {
@@ -38,8 +38,9 @@ message QueryUnitResponseProto {
 message StatusReportProto {
   required int64 timestamp = 1;
   required string serverName = 2;
-  repeated TaskStatusProto status = 3;
-  repeated QueryUnitAttemptIdProto pings = 4;
+  required int32 availableSlots = 3;
+  repeated TaskStatusProto status = 4;
+  repeated QueryUnitAttemptIdProto pings = 5;
 }
 
 message CommandRequestProto {

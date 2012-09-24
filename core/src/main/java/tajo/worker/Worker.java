@@ -31,7 +31,6 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.zookeeper.KeeperException;
 import tajo.NConstants;
 import tajo.QueryUnitAttemptId;
-import tajo.TajoProtos.QueryState;
 import tajo.TajoProtos.TaskAttemptState;
 import tajo.common.Sleeper;
 import tajo.conf.TajoConf;
@@ -127,10 +126,9 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
     String hostname = DNS.getDefaultHost(
         conf.get("nta.master.dns.interface", "default"),
         conf.get("nta.master.dns.nameserver", "default"));
-    int port = this.conf.getIntVar(ConfVars.LEAFSERVER_PORT);
 
     // Creation of a HSA will force a resolve.
-    InetSocketAddress initialIsa = new InetSocketAddress(hostname, port);
+    InetSocketAddress initialIsa = new InetSocketAddress(hostname, 0);
     if (initialIsa.getAddress() == null) {
       throw new IllegalArgumentException("Failed resolve of " + this.isa);
     }
@@ -344,6 +342,20 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
   }
 
   public void shutdown(final String msg) {
+
+    for (Task task : tasks.values()) {
+      if (task.getStatus() == TaskAttemptState.TA_PENDING ||
+          task.getStatus() == TaskAttemptState.TA_RUNNING) {
+        task.setState(TaskAttemptState.TA_FAILED);
+      }
+    }
+
+    try {
+      sendHeartbeat(System.currentTimeMillis());
+    } catch (IOException e) {
+      LOG.error(e);
+    }
+
     this.stopped = true;
     LOG.info("STOPPED: " + msg);
     synchronized (this) {

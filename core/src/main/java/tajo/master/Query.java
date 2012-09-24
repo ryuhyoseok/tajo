@@ -32,10 +32,7 @@ import tajo.QueryUnitId;
 import tajo.SubQueryId;
 import tajo.TajoProtos.QueryState;
 import tajo.engine.planner.global.MasterPlan;
-import tajo.master.event.QueryEvent;
-import tajo.master.event.QueryEventType;
-import tajo.master.event.SubQueryEvent;
-import tajo.master.event.SubQueryEventType;
+import tajo.master.event.*;
 import tajo.storage.StorageManager;
 
 import java.io.IOException;
@@ -226,21 +223,30 @@ public class Query implements EventHandler<QueryEvent> {
     public QueryState transition(Query query, QueryEvent event) {
       query.completedSubQueryCount++;
 
-      if (query.completedSubQueryCount == 7) {
-        LOG.info("Bug Point!");
-      }
+      QuerySubQueryEvent castEvent = (QuerySubQueryEvent) event;
+      if (castEvent.getType() == QueryEventType.SUBQUERY_COMPLETED) {
 
-      SubQuery nextSubQuery = query.takeSubQuery();
+        if (query.completedSubQueryCount == 7) {
+          LOG.info("Bug Point!");
+        }
 
-      if (nextSubQuery == null) {
+        SubQuery nextSubQuery = query.takeSubQuery();
+
+        if (nextSubQuery == null) {
+          return query.checkQueryForCompleted();
+        }
+
+        nextSubQuery.handle(new SubQueryEvent(nextSubQuery.getId(),
+            SubQueryEventType.SQ_INIT));
+        LOG.info("Schedule unit plan: \n" + nextSubQuery.getLogicalPlan());
+        QueryState state = query.checkQueryForCompleted();
+        return state;
+      } else if (castEvent.getType() == QueryEventType.INTERNAL_ERROR) {
+
+        return QueryState.QUERY_FAILED;
+      } else {
         return query.checkQueryForCompleted();
       }
-
-      nextSubQuery.handle(new SubQueryEvent(nextSubQuery.getId(),
-          SubQueryEventType.SQ_INIT));
-      LOG.info("Schedule unit plan: \n" + nextSubQuery.getLogicalPlan());
-      QueryState state = query.checkQueryForCompleted();
-      return state;
     }
   }
 

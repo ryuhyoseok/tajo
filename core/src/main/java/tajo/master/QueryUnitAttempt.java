@@ -230,7 +230,7 @@ public class QueryUnitAttempt implements EventHandler<TaskAttemptEvent> {
 
       //notify the eventhandler of state change
       if (oldState != getState()) {
-        LOG.info(id + "Job Transitioned from " + oldState + " to "
+        LOG.info(id + " TaskAttempt Transitioned from " + oldState + " to "
             + getState());
       }
     }
