@@ -18,7 +18,7 @@
  * limitations under the License.
  */
 
-package tajo.engine.cluster;
+package tajo.master.cluster;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.logging.Log;

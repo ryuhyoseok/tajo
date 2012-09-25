@@ -26,12 +26,13 @@ import org.junit.Test;
 import tajo.TajoTestingUtility;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto.Disk;
-import tajo.engine.cluster.WorkerTracker;
-import tajo.engine.cluster.WorkerCommunicator;
+import tajo.master.TajoMaster;
+import tajo.master.cluster.WorkerCommunicator;
+import tajo.master.cluster.WorkerTracker;
 import tajo.rpc.RemoteException;
-import tajo.zookeeper.ZkClient;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -40,7 +41,6 @@ import static org.junit.Assert.assertNotNull;
 public class TestWorkerCommunicator {
 
   private static TajoTestingUtility cluster;
-  private static ZkClient zkClient;
   private static WorkerTracker tracker;
   private static WorkerCommunicator wc;
 
@@ -50,16 +50,13 @@ public class TestWorkerCommunicator {
     cluster.startMiniCluster(2);
     Thread.sleep(2000);
 
-    zkClient = new ZkClient(cluster.getConfiguration());
-    tracker = cluster.getMiniTajoCluster().getMaster().getTracker();
-
-    wc = new WorkerCommunicator(zkClient, tracker);
-    wc.start();
+    TajoMaster master = cluster.getMiniTajoCluster().getMaster();
+    tracker = master.getTracker();
+    wc = master.getWorkerCommunicator();
   }
 
   @AfterClass
   public static void tearDown() throws IOException {
-    wc.close();
     cluster.shutdownMiniCluster();
   }
 
@@ -73,7 +70,7 @@ public class TestWorkerCommunicator {
     Thread.sleep(1500);
     assertEquals(wc.getProxyMap().size(), tracker.getMembers().size());
 
-    List<String> servers = tracker.getMembers();
+    Collection<String> servers = tracker.getMembers();
     for (String server : servers) {
       try {
         ServerStatusProto status = wc.getServerStatus(server).get();

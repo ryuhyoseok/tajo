@@ -33,11 +33,11 @@ import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.statistics.TableStat;
 import tajo.conf.TajoConf;
 import tajo.engine.MasterWorkerProtos.*;
-import tajo.engine.cluster.MasterAddressTracker;
+import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.ipc.AsyncWorkerProtocol;
 import tajo.ipc.MasterWorkerProtocol;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
-import tajo.engine.query.QueryUnitRequestImpl;
+import tajo.master.cluster.MasterAddressTracker;
 import tajo.rpc.NettyRpc;
 import tajo.rpc.NettyRpcServer;
 import tajo.rpc.protocolrecords.PrimitiveProtos;
@@ -118,8 +118,8 @@ public abstract class MockupWorker
     LOG.info("Got the master address (" + new String(master) + ")");
     // if the znode already exists, it will be updated for notification.
     ZkUtil.upsertEphemeralNode(zkClient,
-        ZkUtil.concat(NConstants.ZNODE_LEAFSERVERS, serverName));
-    LOG.info("Created the znode " + NConstants.ZNODE_LEAFSERVERS + "/"
+        ZkUtil.concat(NConstants.ZNODE_WORKERS, serverName));
+    LOG.info("Created the znode " + NConstants.ZNODE_WORKERS + "/"
         + serverName);
 
     InetSocketAddress addr = NetUtils.createSocketAddr(new String(master));
@@ -300,7 +300,7 @@ public abstract class MockupWorker
 
   protected void clear() {
     // remove the znode
-    ZkUtil.concat(NConstants.ZNODE_LEAFSERVERS, serverName);
+    ZkUtil.concat(NConstants.ZNODE_WORKERS, serverName);
 
     rpcServer.shutdown();
     masterAddrTracker.stop();

@@ -36,11 +36,11 @@ import tajo.common.Sleeper;
 import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.MasterWorkerProtos.*;
-import tajo.engine.cluster.MasterAddressTracker;
 import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.ipc.AsyncWorkerProtocol;
 import tajo.ipc.MasterWorkerProtocol;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
+import tajo.master.cluster.MasterAddressTracker;
 import tajo.rpc.NettyRpc;
 import tajo.rpc.NettyRpcServer;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
@@ -173,8 +173,8 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
     LOG.info("Got the master address (" + new String(master) + ")");
     // if the znode already exists, it will be updated for notification.
     ZkUtil.upsertEphemeralNode(zkClient,
-        ZkUtil.concat(NConstants.ZNODE_LEAFSERVERS, serverName));
-    LOG.info("Created the znode " + NConstants.ZNODE_LEAFSERVERS + "/" 
+        ZkUtil.concat(NConstants.ZNODE_WORKERS, serverName));
+    LOG.info("Created the znode " + NConstants.ZNODE_WORKERS + "/"
         + serverName);
     
     InetSocketAddress addr = NetUtils.createSocketAddr(new String(master));
@@ -265,7 +265,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
       }
 
       // remove the znode
-      ZkUtil.concat(NConstants.ZNODE_LEAFSERVERS, serverName);
+      ZkUtil.concat(NConstants.ZNODE_WORKERS, serverName);
 
       try {
         webServer.stop();
@@ -350,11 +350,11 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
       }
     }
 
-    try {
-      sendHeartbeat(System.currentTimeMillis());
-    } catch (IOException e) {
-      LOG.error(e);
-    }
+//    try {
+//      sendHeartbeat(System.currentTimeMillis());
+//    } catch (IOException e) {
+//      LOG.error(e);
+//    }
 
     this.stopped = true;
     LOG.info("STOPPED: " + msg);

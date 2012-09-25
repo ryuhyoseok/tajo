@@ -17,8 +17,8 @@ package tajo.master;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.AbstractService;
-import tajo.engine.cluster.ClusterManager.WorkerResource;
-import tajo.master.event.WorkerEvent;
+import tajo.master.cluster.ClusterManager.WorkerResource;
+import tajo.master.cluster.event.WorkerEvent;
 
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -53,10 +53,6 @@ public class WorkerManager extends AbstractService
 
   @Override
   public void handle(WorkerEvent workerEvent) {
-    switch (workerEvent.getType()) {
-      case STATUS_UPDATE:
-
-      case SHUTDOWN:
-    }
+    //To change body of implemented methods use File | Settings | File Templates.
   }
 }

@@ -12,19 +12,14 @@
  * limitations under the License.
  */
 
-package tajo.master.event;
+package tajo.master.cluster.event;
 
-import org.apache.hadoop.yarn.event.AbstractEvent;
+/**
+ * Event Types handled by WorkerCommunicator and ClusterManager
+ */
+public enum WorkerEventType {
 
-public class WorkerEvent extends AbstractEvent<WorkerEventType> {
-  private String workerName;
-
-  public WorkerEvent(String workerName, WorkerEventType workerEventType) {
-    super(workerEventType);
-    this.workerName = workerName;
-  }
-
-  public String getWorkerName() {
-    return workerName;
-  }
+  // Producer: WorkerTracker
+  JOIN,
+  LEAVE
 }

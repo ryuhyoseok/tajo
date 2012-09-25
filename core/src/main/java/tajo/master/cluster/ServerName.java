@@ -1,4 +1,4 @@
-package tajo.engine.cluster;
+package tajo.master.cluster;
 
 public class ServerName implements Comparable<ServerName> {
   /**

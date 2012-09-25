@@ -21,7 +21,7 @@
 /**
  * 
  */
-package tajo.engine.cluster;
+package tajo.master.cluster;
 
 import com.google.common.collect.MapMaker;
 import org.apache.commons.logging.Log;
@@ -32,9 +32,9 @@ import tajo.QueryUnitId;
 import tajo.SubQueryId;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.engine.exception.NoSuchQueryIdException;
+import tajo.master.Query;
 import tajo.master.QueryUnit;
 import tajo.master.QueryUnitAttempt;
-import tajo.master.Query;
 import tajo.master.SubQuery;
 import tajo.util.TQueryUtil;
 

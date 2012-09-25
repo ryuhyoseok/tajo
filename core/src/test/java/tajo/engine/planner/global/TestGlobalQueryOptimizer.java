@@ -38,7 +38,6 @@ import tajo.catalog.proto.CatalogProtos.StoreType;
 import tajo.conf.TajoConf;
 import tajo.datum.Datum;
 import tajo.datum.DatumFactory;
-import tajo.engine.cluster.QueryManager;
 import tajo.engine.eval.TestEvalTree.TestSum;
 import tajo.engine.parser.QueryAnalyzer;
 import tajo.engine.planner.LogicalOptimizer;
@@ -47,6 +46,7 @@ import tajo.engine.planner.PlanningContext;
 import tajo.engine.planner.logical.*;
 import tajo.master.GlobalPlanner;
 import tajo.master.SubQuery;
+import tajo.master.cluster.QueryManager;
 import tajo.storage.*;
 
 import java.io.IOException;

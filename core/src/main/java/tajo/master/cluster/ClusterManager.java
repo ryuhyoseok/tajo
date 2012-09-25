@@ -18,7 +18,7 @@
  * limitations under the License.
  */
 
-package tajo.engine.cluster;
+package tajo.master.cluster;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;

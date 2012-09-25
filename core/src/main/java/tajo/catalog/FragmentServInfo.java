@@ -1,7 +1,7 @@
 package tajo.catalog;
 
-import tajo.engine.cluster.ServerName;
 import tajo.ipc.protocolrecords.Fragment;
+import tajo.master.cluster.ServerName;
 
 
 public class FragmentServInfo {

@@ -1,7 +1,7 @@
 package tajo.cluster;
 
 import org.junit.Test;
-import tajo.engine.cluster.ServerName;
+import tajo.master.cluster.ServerName;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

@@ -47,7 +47,9 @@ import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.ClientServiceProtos.*;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
-import tajo.engine.cluster.*;
+import tajo.master.cluster.*;
+import tajo.master.cluster.event.WorkerEvent;
+import tajo.master.cluster.event.WorkerEventType;
 import tajo.master.event.*;
 import tajo.rpc.NettyRpc;
 import tajo.rpc.NettyRpcServer;
@@ -65,6 +67,7 @@ import tajo.zookeeper.ZkUtil;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -91,9 +94,9 @@ public class TajoMaster extends CompositeService implements ClientService {
   private CatalogService catalog;
   private StorageManager storeManager;
   private GlobalEngine queryEngine;
-  private WorkerCommunicator wc;
+  private WorkerCommunicator communicator;
   private ClusterManager clusterManager;
-  private WorkerListener wl;
+  private WorkerListener workerListener;
   private QueryManager qm;
   private AsyncDispatcher dispatcher;
   private DefaultScheduler scheduler;
@@ -173,13 +176,13 @@ public class TajoMaster extends CompositeService implements ClientService {
 
       // connect the zkserver
       this.zkClient = new ZkClient(conf);
-      this.wl = new WorkerListener(context);
+      this.workerListener = new WorkerListener(context);
 
       // Setup RPC server
       // Get the master address
       LOG.info(TajoMaster.class.getSimpleName() + " is bind to "
-          + wl.getAddress());
-      this.conf.setVar(TajoConf.ConfVars.MASTER_ADDRESS, wl.getAddress());
+          + workerListener.getAddress());
+      this.conf.setVar(TajoConf.ConfVars.MASTER_ADDRESS, workerListener.getAddress());
 
       String confClientServiceAddr = conf.getVar(ConfVars.CLIENT_SERVICE_ADDRESS);
       InetSocketAddress initIsa = NetUtils.createSocketAddr(confClientServiceAddr);
@@ -196,15 +199,19 @@ public class TajoMaster extends CompositeService implements ClientService {
       this.conf.setVar(ConfVars.CLIENT_SERVICE_ADDRESS, this.clientServiceAddr);
 
       becomeMaster();
-      tracker = new WorkerTracker(zkClient);
+      tracker = new WorkerTracker(zkClient, dispatcher.getEventHandler());
       tracker.start();
 
-      this.wc = new WorkerCommunicator(zkClient, tracker);
-      this.wc.start();
-      this.clusterManager = new ClusterManager(conf, wc, tracker, catalog,
+      WorkerEventDispatcher workerEventDispatcher = new WorkerEventDispatcher();
+      dispatcher.register(WorkerEventType.class, workerEventDispatcher);
+
+      this.communicator = new WorkerCommunicator(tracker, dispatcher.getEventHandler());
+      addIfService(this.communicator);
+      workerEventDispatcher.addHandler(this.communicator);
+
+      this.clusterManager = new ClusterManager(conf, communicator, tracker, catalog,
           dispatcher.getEventHandler());
       addIfService(clusterManager);
-      dispatcher.register(WorkerEventType.class, this.clusterManager);
 
       this.queryEngine = new GlobalEngine(context, storeManager);
 
@@ -213,11 +220,12 @@ public class TajoMaster extends CompositeService implements ClientService {
       addIfService(scheduler);
 
       dispatcher.register(QueryEventType.class, new QueryEventDispatcher());
-      dispatcher.register(SubQueryEventType.class, new SubQueryEventDispatcher());
+      dispatcher.register(SubQueryEventType.class,
+          new SubQueryEventDispatcher());
       dispatcher.register(TaskEventType.class, new TaskEventDispatcher());
       dispatcher.register(TaskAttemptEventType.class, new TaskAttemptEventDispatcher());
 
-      this.wl.start();
+      this.workerListener.start();
     } catch (Exception e) {
 
     }
@@ -265,6 +273,25 @@ public class TajoMaster extends CompositeService implements ClientService {
     }
   }
 
+  static class WorkerEventDispatcher implements EventHandler<WorkerEvent> {
+    List<EventHandler<WorkerEvent>> listofHandlers;
+
+    public WorkerEventDispatcher() {
+      listofHandlers = new ArrayList<>();
+    }
+
+    @Override
+    public void handle(WorkerEvent event) {
+      for (EventHandler<WorkerEvent> handler: listofHandlers) {
+        handler.handle(event);
+      }
+    }
+
+    public void addHandler(EventHandler<WorkerEvent> handler) {
+      listofHandlers.add(handler);
+    }
+  }
+
   protected void addIfService(Object object) {
     if (object instanceof Service) {
       addService((Service) object);
@@ -275,9 +302,9 @@ public class TajoMaster extends CompositeService implements ClientService {
       InterruptedException {
     ZkUtil.createPersistentNodeIfNotExist(zkClient, NConstants.ZNODE_BASE);
     ZkUtil.upsertEphemeralNode(zkClient, NConstants.ZNODE_MASTER,
-        wl.getAddress().getBytes());
+        workerListener.getAddress().getBytes());
     ZkUtil.createPersistentNodeIfNotExist(zkClient,
-        NConstants.ZNODE_LEAFSERVERS);
+        NConstants.ZNODE_WORKERS);
     ZkUtil.createPersistentNodeIfNotExist(zkClient, NConstants.ZNODE_QUERIES);
     ZkUtil.upsertEphemeralNode(zkClient, NConstants.ZNODE_CLIENTSERVICE,
         clientServiceAddr.getBytes());
@@ -291,21 +318,19 @@ public class TajoMaster extends CompositeService implements ClientService {
 
   @Override
   public void stop() {
-    if (wc != null) {
-      this.wc.close();
-    }
-    this.wl.shutdown();
-    tracker.close();
-    this.server.shutdown();
+
+    workerListener.shutdown();
+    tracker.stop();
+    server.shutdown();
+
     if (zkServer != null) {
       zkServer.shutdown();
     }
 
     try {
       webServer.stop();
-    } catch (Exception e1) {
-      // TODO Auto-generated catch block
-      e1.printStackTrace();
+    } catch (Exception e) {
+      LOG.error(e);
     }
 
     super.stop();
@@ -317,7 +342,7 @@ public class TajoMaster extends CompositeService implements ClientService {
   }
 
   public String getMasterServerName() {
-    return this.wl.getAddress();
+    return this.workerListener.getAddress();
   }
 
   public String getClientServiceServerName() {
@@ -334,7 +359,7 @@ public class TajoMaster extends CompositeService implements ClientService {
 
   public List<String> getOnlineServer() throws KeeperException,
       InterruptedException {
-    return zkClient.getChildren(NConstants.ZNODE_LEAFSERVERS);
+    return zkClient.getChildren(NConstants.ZNODE_WORKERS);
   }
 
   public CatalogService getCatalog() {
@@ -342,7 +367,7 @@ public class TajoMaster extends CompositeService implements ClientService {
   }
 
   public WorkerCommunicator getWorkerCommunicator() {
-    return wc;
+    return communicator;
   }
 
   public GlobalEngine getGlobalEngine() {
@@ -595,7 +620,7 @@ public class TajoMaster extends CompositeService implements ClientService {
     }
 
     public WorkerCommunicator getWorkerCommunicator() {
-      return wc;
+      return communicator;
     }
   }
 }

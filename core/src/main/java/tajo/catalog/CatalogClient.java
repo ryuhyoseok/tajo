@@ -9,7 +9,7 @@ import org.apache.hadoop.net.NetUtils;
 import tajo.NConstants;
 import tajo.catalog.proto.CatalogProtos.*;
 import tajo.conf.TajoConf;
-import tajo.engine.cluster.ServerNodeTracker;
+import tajo.master.cluster.ServerNodeTracker;
 import tajo.rpc.NettyRpc;
 import tajo.rpc.protocolrecords.PrimitiveProtos.NullProto;
 import tajo.rpc.protocolrecords.PrimitiveProtos.StringProto;

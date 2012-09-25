@@ -12,8 +12,8 @@ import tajo.catalog.TableDesc;
 import tajo.client.TajoClient;
 import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
-import tajo.engine.cluster.ServerName;
-import tajo.engine.cluster.ServerNodeTracker;
+import tajo.master.cluster.ServerName;
+import tajo.master.cluster.ServerNodeTracker;
 import tajo.util.FileUtil;
 import tajo.zookeeper.ZkClient;
 

@@ -12,9 +12,22 @@
  * limitations under the License.
  */
 
-package tajo.master.event;
+package tajo.master.cluster.event;
 
-public enum WorkerEventType {
-  STATUS_UPDATE,
-  SHUTDOWN
+import org.apache.hadoop.yarn.event.AbstractEvent;
+
+import java.util.Collection;
+
+public class WorkerEvent extends AbstractEvent<WorkerEventType> {
+  private Collection<String> workerName;
+
+  public WorkerEvent(WorkerEventType workerEventType,
+                     Collection<String> workerNames) {
+    super(workerEventType);
+    this.workerName = workerNames;
+  }
+
+  public Collection<String> getWorkerNames() {
+    return workerName;
+  }
 }

@@ -8,7 +8,7 @@ import org.junit.Test;
 import tajo.NConstants;
 import tajo.TajoTestingUtility;
 import tajo.conf.TajoConf;
-import tajo.engine.cluster.ServerNodeTracker;
+import tajo.master.cluster.ServerNodeTracker;
 import tajo.zookeeper.ZkClient;
 import tajo.zookeeper.ZkUtil;
 
@@ -44,7 +44,7 @@ public class TestTajoMaster {
     assertNotNull(zkClient.exists(NConstants.ZNODE_BASE));
     assertNotNull(zkClient.exists(NConstants.ZNODE_MASTER));
     assertNotNull(zkClient.exists(NConstants.ZNODE_CLIENTSERVICE));
-    assertNotNull(zkClient.exists(NConstants.ZNODE_LEAFSERVERS));
+    assertNotNull(zkClient.exists(NConstants.ZNODE_WORKERS));
     assertNotNull(zkClient.exists(NConstants.ZNODE_QUERIES));
 
     byte[] data = ZkUtil.getDataAndWatch(zkClient, NConstants.ZNODE_MASTER);

@@ -1,4 +1,4 @@
-package tajo.engine.cluster;
+package tajo.master.cluster;
 
 import com.google.common.collect.Lists;
 import tajo.ipc.protocolrecords.Fragment;

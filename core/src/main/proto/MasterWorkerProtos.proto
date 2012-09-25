@@ -38,10 +38,8 @@ message QueryUnitResponseProto {
 message StatusReportProto {
   required int64 timestamp = 1;
   required string serverName = 2;
-  required int32 availableTaskSlots = 3;
-  required int32 pendingTasks = 4;
-  repeated TaskStatusProto status = 5;
-  repeated QueryUnitAttemptIdProto pings = 6;
+  repeated TaskStatusProto status = 3;
+  repeated QueryUnitAttemptIdProto pings = 4;
 }
 
 message CommandRequestProto {

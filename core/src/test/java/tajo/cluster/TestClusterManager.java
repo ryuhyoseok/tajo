@@ -11,13 +11,13 @@ import tajo.catalog.*;
 import tajo.catalog.proto.CatalogProtos.DataType;
 import tajo.catalog.proto.CatalogProtos.StoreType;
 import tajo.datum.DatumFactory;
-import tajo.engine.cluster.ClusterManager;
-import tajo.engine.cluster.ClusterManager.DiskInfo;
-import tajo.engine.cluster.ClusterManager.WorkerInfo;
-import tajo.engine.cluster.FragmentServingInfo;
-import tajo.engine.cluster.WorkerCommunicator;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.master.TajoMaster;
+import tajo.master.cluster.ClusterManager;
+import tajo.master.cluster.ClusterManager.DiskInfo;
+import tajo.master.cluster.ClusterManager.WorkerInfo;
+import tajo.master.cluster.FragmentServingInfo;
+import tajo.master.cluster.WorkerCommunicator;
 import tajo.storage.*;
 
 import java.io.IOException;

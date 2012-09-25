@@ -19,7 +19,7 @@
 package tajo.master.event;
 
 /**
- * Event Types handled by SubQueryExecutor
+ * Event Types handled by SubQuery
  */
 public enum SubQueryEventType {
 
