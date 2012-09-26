@@ -38,7 +38,7 @@ public class ZkClient implements Watcher {
   private RetryCounterFactory retryCounterFactory;
 
   private final List<ZkListener> listeners =
-      new CopyOnWriteArrayList<ZkListener>();
+      new CopyOnWriteArrayList<>();
 
   public ZkClient(final TajoConf conf) throws IOException {
     this(conf.getVar(ZOOKEEPER_ADDRESS),
@@ -76,7 +76,7 @@ public class ZkClient implements Watcher {
     this.listeners.add(listener);
   }
 
-  public void unsubscribe(ZkListener listener) {
+  public void unsubscribe(BasicZkListener listener) {
     this.listeners.remove(listener);
   }
 

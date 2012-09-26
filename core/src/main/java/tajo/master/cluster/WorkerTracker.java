@@ -23,10 +23,12 @@ import com.google.common.collect.Sets;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.zookeeper.KeeperException;
 import tajo.NConstants;
 import tajo.master.cluster.event.WorkerEvent;
 import tajo.master.cluster.event.WorkerEventType;
+import tajo.zookeeper.BasicZkListener;
 import tajo.zookeeper.ZkClient;
 import tajo.zookeeper.ZkListener;
 import tajo.zookeeper.ZkUtil;
@@ -36,7 +38,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class WorkerTracker extends ZkListener {
+public class WorkerTracker extends AbstractService implements ZkListener {
   private final Log LOG = LogFactory.getLog(WorkerTracker.class);
   private final ZkClient client;
   private Set<String> members = new HashSet<>();
@@ -46,6 +48,7 @@ public class WorkerTracker extends ZkListener {
 
   public WorkerTracker(ZkClient client, EventHandler eventHandler)
       throws Exception {
+    super(WorkerTracker.class.getName());
     this.client = client;
     this.eventHandler = eventHandler;
 
@@ -54,25 +57,39 @@ public class WorkerTracker extends ZkListener {
     this.writeLock = readWriteLock.writeLock();
   }
 
-  public void start() throws Exception {
+  public void start()  {
     this.client.subscribe(this);
 
     try {
       writeLock.lock();
 
-      List<String> nodeNames = ZkUtil
-          .listChildrenAndWatchThem(this.client, NConstants.ZNODE_WORKERS);
+      List<String> nodeNames = null;
+
+      nodeNames = ZkUtil
+            .listChildrenAndWatchThem(this.client, NConstants.ZNODE_WORKERS);
+
       for (String nodeName : nodeNames) {
         this.members.add(nodeName);
       }
 
+    } catch (Exception e) {
+      LOG.error(e);
+
     } finally {
       writeLock.unlock();
     }
+
+    super.start();
   }
 
   public void stop() {
     members.clear();
+    super.stop();
+  }
+
+  @Override
+  public void nodeCreated(String path) {
+    // nothing
   }
 
   @Override
@@ -96,6 +113,11 @@ public class WorkerTracker extends ZkListener {
       eventHandler.handle(new WorkerEvent(WorkerEventType.LEAVE,
           Lists.newArrayList(nodeName)));
     }
+  }
+
+  @Override
+  public void nodeDataChanged(String path) {
+    // nothing
   }
 
   @Override

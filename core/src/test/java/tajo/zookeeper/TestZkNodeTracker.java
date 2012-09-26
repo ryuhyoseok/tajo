@@ -214,7 +214,7 @@ public class TestZkNodeTracker {
     }
   }
 
-  public static class TestingZKListener extends ZkListener {
+  public static class TestingZKListener extends BasicZkListener {
     private static final Log LOG = LogFactory.getLog(TestingZKListener.class);
 
     private Semaphore deletedLock;

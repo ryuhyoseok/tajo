@@ -19,7 +19,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.zookeeper.KeeperException;
 import tajo.NConstants;
 
-public abstract class ZkNodeTracker extends ZkListener {
+public abstract class ZkNodeTracker extends BasicZkListener {
   private static final Log LOG = LogFactory.getLog(ZkNodeTracker.class);
 
   private final ZkClient client;

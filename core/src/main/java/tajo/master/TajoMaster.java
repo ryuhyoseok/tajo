@@ -199,8 +199,9 @@ public class TajoMaster extends CompositeService implements ClientService {
       this.conf.setVar(ConfVars.CLIENT_SERVICE_ADDRESS, this.clientServiceAddr);
 
       becomeMaster();
+
       tracker = new WorkerTracker(zkClient, dispatcher.getEventHandler());
-      tracker.start();
+      addIfService(tracker);
 
       WorkerEventDispatcher workerEventDispatcher = new WorkerEventDispatcher();
       dispatcher.register(WorkerEventType.class, workerEventDispatcher);
@@ -320,7 +321,6 @@ public class TajoMaster extends CompositeService implements ClientService {
   public void stop() {
 
     workerListener.shutdown();
-    tracker.stop();
     server.shutdown();
 
     if (zkServer != null) {
