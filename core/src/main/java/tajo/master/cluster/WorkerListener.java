@@ -96,7 +96,6 @@ public class WorkerListener extends Thread implements MasterWorkerProtocol {
 
     if (context.getClusterManager().getFailedWorkers().contains(
         proto.getServerName())) {
-      LOG.info("**** Dead man ( " + proto.getServerName() + ") alive!!!!!!");
     }
 
     StatusReport report = new StatusReportImpl(proto);
