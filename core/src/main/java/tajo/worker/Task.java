@@ -302,7 +302,7 @@ public class Task implements Runnable {
 
   private void waitForFetch() throws InterruptedException, IOException {
     context.getFetchLatch().await();
-    LOG.info(context.getTaskId() + "All fetches are done!");
+    LOG.info(context.getTaskId() + " All fetches are done!");
     Collection<String> inputs = Lists.newArrayList(context.getInputTables());
     for (String inputTable: inputs) {
       File tableDir = new File(context.getFetchIn(), inputTable);

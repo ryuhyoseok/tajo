@@ -14,14 +14,12 @@
  * limitations under the License.
  */
 
-option java_package = "tajo.rpc.test";
-option java_outer_classname = "DummyProtocol";
-option java_generic_services = true;
+package tajo.util;
 
-import "TestProtos.proto";
+import java.net.InetSocketAddress;
 
-service DummyProtocolService {
-  rpc sum (SumRequest) returns (SumResponse);
-  rpc echo (EchoMessage) returns (EchoMessage);
-  rpc error (EchoMessage) returns (EchoMessage);
+public class NetUtils {
+  public static String getIpPortString(InetSocketAddress addr) {
+    return addr.getAddress().getHostAddress() + ":" + addr.getPort();
+  }
 }

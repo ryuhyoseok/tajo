@@ -39,4 +39,11 @@ public class DummyProtocolBlockingImpl implements BlockingInterface {
     return EchoMessage.newBuilder().
         setMessage(request.getMessage()).build();
   }
+
+  @Override
+  public EchoMessage error(RpcController controller, EchoMessage request)
+      throws ServiceException {
+    controller.setFailed("Fatal Error!");;
+    return null;
+  }
 }

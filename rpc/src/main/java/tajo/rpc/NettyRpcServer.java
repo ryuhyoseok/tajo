@@ -32,6 +32,7 @@ import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
 
+@Deprecated
 public class NettyRpcServer extends NettyServerBase {
   private static Log LOG = LogFactory.getLog(NettyRpcServer.class);
   private final Object instance;
@@ -45,8 +46,8 @@ public class NettyRpcServer extends NettyServerBase {
     super(bindAddress);
     this.instance = proxy;
     this.clazz = instance.getClass();
-    this.methods = new HashMap<String, Method>();
-    this.builderMethods = new HashMap<String, Method>();
+    this.methods = new HashMap<>();
+    this.builderMethods = new HashMap<>();
     this.pipeline =
         new ProtoPipelineFactory(new ServerHandler(),
             Invocation.getDefaultInstance());

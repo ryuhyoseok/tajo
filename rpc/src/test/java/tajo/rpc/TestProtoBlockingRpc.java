@@ -22,6 +22,7 @@ import tajo.rpc.test.DummyProtocol.DummyProtocolService.BlockingInterface;
 import tajo.rpc.test.TestProtos.EchoMessage;
 import tajo.rpc.test.TestProtos.SumRequest;
 import tajo.rpc.test.TestProtos.SumResponse;
+import tajo.rpc.test.impl.DummyProtocolBlockingImpl;
 
 import java.net.InetSocketAddress;
 
@@ -34,14 +35,14 @@ public class TestProtoBlockingRpc {
   @Test
   public void testRpc() throws Exception {
     ProtoBlockingRpcServer server =
-        NettyRpc.getProtoBlockingRpcServer(
-            DummyProtocol.class,
+        new ProtoBlockingRpcServer(DummyProtocol.class,
+            new DummyProtocolBlockingImpl(),
             new InetSocketAddress(10000));
     server.start();
 
-    BlockingInterface service =
-        (BlockingInterface) NettyRpc.getProtoBlockingRpcProxy(DummyProtocol.class,
-            new InetSocketAddress(10000));
+    ProtoBlockingRpcClient client = new ProtoBlockingRpcClient(
+        new InetSocketAddress(10000));
+    BlockingInterface service = client.getStub(DummyProtocol.class);
 
     SumRequest request = SumRequest.newBuilder()
         .setX1(1)
@@ -56,6 +57,7 @@ public class TestProtoBlockingRpc {
     EchoMessage response2 = service.echo(null, message);
     assertEquals(MESSAGE, response2.getMessage());
 
+    client.close();
     server.shutdown();
   }
 }

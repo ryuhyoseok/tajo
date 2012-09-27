@@ -34,7 +34,7 @@ public class BenchmarkHadoopRPC {
       BenchmarkInterface proxy = null;
       try {
         proxy =
-            (BenchmarkInterface) RPC.waitForProxy(BenchmarkInterface.class, 1,
+            RPC.waitForProxy(BenchmarkInterface.class, 1,
                 addr, new Configuration());
       } catch (IOException e1) {
         e1.printStackTrace();

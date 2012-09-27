@@ -25,11 +25,11 @@ import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.socket.ClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 
+import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
 
-public class NettyClientBase {
-  @SuppressWarnings("unused")
+public class NettyClientBase implements Closeable {
   private static Log LOG = LogFactory.getLog(NettyClientBase.class);
 
   private ClientSocketChannelFactory factory;
@@ -39,11 +39,6 @@ public class NettyClientBase {
   protected InetSocketAddress addr;
 
   public NettyClientBase() {
-  }
-
-  public NettyClientBase(InetSocketAddress addr,
-      ChannelPipelineFactory pipeFactory) {
-    init(addr, pipeFactory);
   }
 
   public void init(InetSocketAddress addr, ChannelPipelineFactory pipeFactory) {
@@ -79,8 +74,11 @@ public class NettyClientBase {
     return this.channel;
   }
 
-  public void shutdown() {
+  @Override
+  public void close() {
     this.channel.close().awaitUninterruptibly();
     this.bootstrap.releaseExternalResources();
+    LOG.info("Proxy is disconnected from " +
+        addr.getAddress().getHostAddress() + ":" + addr.getPort());
   }
 }

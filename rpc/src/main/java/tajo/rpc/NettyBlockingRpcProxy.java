@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+@Deprecated
 public class NettyBlockingRpcProxy extends NettyClientBase {
 
   private static Log LOG = LogFactory.getLog(NettyBlockingRpcProxy.class);

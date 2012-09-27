@@ -27,12 +27,14 @@ import org.jboss.netty.channel.*;
 import tajo.rpc.RpcProtos.RpcRequest;
 import tajo.rpc.RpcProtos.RpcResponse;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ProtoBlockingRpcProxy extends NettyClientBase {
+public class ProtoBlockingRpcClient extends NettyClientBase {
   private static final Log LOG = LogFactory.getLog(RpcProtos.class);
 
   private final ChannelUpstreamHandler handler;
@@ -40,15 +42,26 @@ public class ProtoBlockingRpcProxy extends NettyClientBase {
   private final ProxyRpcChannel rpcChannel;
 
   private final AtomicInteger sequence = new AtomicInteger(0);
-  private Map<Integer, ProtoCallFuture> requests
-      = new ConcurrentHashMap<Integer, ProtoCallFuture>();
+  private final Map<Integer, ProtoCallFuture> requests =
+      new ConcurrentHashMap<>();
 
-  public ProtoBlockingRpcProxy(InetSocketAddress addr) {
+  public ProtoBlockingRpcClient(final InetSocketAddress addr)
+      throws Exception {
     this.handler = new ClientHandler();
     pipeFactory = new ProtoPipelineFactory(handler,
         RpcResponse.getDefaultInstance());
     super.init(addr, pipeFactory);
     rpcChannel = new ProxyRpcChannel(getChannel());
+  }
+
+  public <T> T getStub(Class protocol)
+      throws ClassNotFoundException, NoSuchMethodException,
+      InvocationTargetException, IllegalAccessException {
+    String serviceClassName = protocol.getName() + "$"
+        + protocol.getSimpleName() + "Service";
+    Class<?> serviceClass = Class.forName(serviceClassName);
+    Method method = serviceClass.getMethod("newBlockingStub", BlockingRpcChannel.class);
+    return (T) method.invoke(null, rpcChannel);
   }
 
   public BlockingRpcChannel getBlockingRpcChannel() {
@@ -67,8 +80,10 @@ public class ProtoBlockingRpcProxy extends NettyClientBase {
       }
     }
 
-    public Message callBlockingMethod(MethodDescriptor method,
-                                      RpcController controller, Message request, Message responsePrototype)
+    public Message callBlockingMethod(final MethodDescriptor method,
+                                      final RpcController controller,
+                                      final Message request,
+                                      final Message responsePrototype)
         throws ServiceException {
       LOG.debug("calling blocking method: " + method.getFullName());
       int nextSeqId = sequence.getAndAdd(1);
@@ -100,7 +115,8 @@ public class ProtoBlockingRpcProxy extends NettyClientBase {
 
   private class ClientHandler extends SimpleChannelUpstreamHandler {
     @Override
-    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e)
+        throws Exception {
       RpcResponse response = (RpcResponse) e.getMessage();
       ProtoCallFuture callback = requests.remove(response.getId());
 
@@ -108,16 +124,16 @@ public class ProtoBlockingRpcProxy extends NettyClientBase {
         LOG.debug("dangling rpc call");
       } else {
         Message m = (response == null || !response.hasResponseMessage()) ?
-            null :
-            callback.getReturnType().
-                newBuilderForType().mergeFrom(response.getResponseMessage()).build();
+            null : callback.getReturnType().newBuilderForType().
+            mergeFrom(response.getResponseMessage()).build();
 
         callback.setResponse(m);
       }
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
+        throws Exception {
       e.getChannel().close();
       LOG.error(e.getCause());
     }

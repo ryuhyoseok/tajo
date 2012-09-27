@@ -28,7 +28,6 @@ import org.junit.Test;
 import tajo.catalog.Options;
 import tajo.catalog.Schema;
 import tajo.catalog.proto.CatalogProtos;
-import tajo.client.ResultSetUtil;
 import tajo.storage.CSVFile2;
 
 import java.io.IOException;
@@ -363,5 +362,16 @@ public class TestSelectQuery {
       count++;
     }
     assertEquals(10, count);
+  }
+
+  @Test
+  public final void testCreateAfterSelect() throws Exception {
+    ResultSet res = tpch.execute(
+        "orderkeys := select l_orderkey from lineitem");
+    int count = 0;
+    for (;res.next();) {
+      count++;
+    }
+    assertEquals(5, count);
   }
 }

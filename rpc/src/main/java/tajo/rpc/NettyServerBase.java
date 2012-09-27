@@ -18,28 +18,40 @@ package tajo.rpc;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.io.IOUtils;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFactory;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 
+import java.io.IOException;
+import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.util.Random;
 import java.util.concurrent.Executors;
 
 public class NettyServerBase {
   private static final Log LOG = LogFactory.getLog(NettyServerBase.class);
 
-  protected final InetSocketAddress bindAddress;
+  protected InetSocketAddress bindAddress;
   protected ChannelFactory factory;
   protected ChannelPipelineFactory pipelineFactory;
   protected ServerBootstrap bootstrap;
   private Channel channel;
 
-  protected volatile boolean stopped = false;
-
-  public NettyServerBase(InetSocketAddress bindAddr) {
-    this.bindAddress = bindAddr;
+  public NettyServerBase(InetSocketAddress addr) {
+    if (addr.getPort() == 0) {
+      try {
+        int port = getUnusedPort();
+        bindAddress = new InetSocketAddress(addr.getHostName(), port);
+      } catch (IOException e) {
+        LOG.error(e);
+      }
+    } else {
+      bindAddress = addr;
+    }
   }
 
   public void init(ChannelPipelineFactory pipeline) {
@@ -64,8 +76,8 @@ public class NettyServerBase {
   }
 
   public void start() {
-    LOG.info("RpcServer on " + this.bindAddress);
     this.channel = bootstrap.bind(bindAddress);
+    LOG.info("RpcServer on " + this.bindAddress);
   }
 
   public Channel getChannel() {
@@ -73,8 +85,49 @@ public class NettyServerBase {
   }
 
   public void shutdown() {
-    LOG.info("RpcServer shutdown");
-    this.stopped = true;
-    this.channel.close();
+    channel.close().awaitUninterruptibly();
+    LOG.info("RpcServer (" + tajo.util.NetUtils.getIpPortString(bindAddress)
+        + ") shutdown");
+  }
+
+  private static final Random randomPort = new Random(System.currentTimeMillis());
+  private static int getUnusedPort() throws IOException {
+    while (true) {
+      int port = randomPort.nextInt(10000) + 50000;
+      if (available(port)) {
+        return port;
+      }
+    }
+  }
+
+  private static boolean available(int port) throws IOException {
+    if (port < 1024 || port > 65535) {
+      throw new IllegalArgumentException("Port Number Out of Bound: " + port);
+    }
+
+    ServerSocket ss = null;
+    DatagramSocket ds = null;
+
+    try {
+      ss = new ServerSocket(port);
+      ss.setReuseAddress(true);
+
+      ds = new DatagramSocket(port);
+      ds.setReuseAddress(true);
+
+      return true;
+
+    } catch (IOException e) {
+      throw new IOException(e);
+
+    } finally {
+      if (ss != null) {
+        IOUtils.closeStream(ss);
+      }
+
+      if (ds != null) {
+        IOUtils.closeStream(ds);
+      }
+    }
   }
 }

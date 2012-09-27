@@ -23,7 +23,9 @@ import tajo.rpc.test.TestProtos.EchoMessage;
 import tajo.rpc.test.TestProtos.SumRequest;
 import tajo.rpc.test.TestProtos.SumResponse;
 
+@SuppressWarnings("UnusedDeclaration")
 public class DummyProtocolAsyncImpl implements Interface {
+
   @Override
   public void sum(RpcController controller, SumRequest request,
                   RpcCallback<SumResponse> done) {
@@ -42,5 +44,12 @@ public class DummyProtocolAsyncImpl implements Interface {
         EchoMessage.newBuilder().
             setMessage(request.getMessage()).build()
     );
+  }
+
+  @Override
+  public void error(RpcController controller, EchoMessage request,
+                    RpcCallback<EchoMessage> done) {
+    controller.setFailed("Fatal Error!");
+    done.run(null);
   }
 }

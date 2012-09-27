@@ -18,6 +18,7 @@ package tajo.rpc;
 
 import java.util.concurrent.*;
 
+@Deprecated
 public class Callback<T> implements Future<T> {
   public enum Status {
     READY, SUCCESS, FAILURE

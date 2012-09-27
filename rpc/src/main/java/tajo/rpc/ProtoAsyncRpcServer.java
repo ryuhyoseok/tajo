@@ -1,6 +1,4 @@
 /*
- * Copyright 2012 Database Lab., Korea Univ.
- *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -16,24 +14,19 @@
 
 package tajo.rpc;
 
-import java.net.InetSocketAddress;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
-
 import com.google.protobuf.Descriptors.MethodDescriptor;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.RpcCallback;
 import com.google.protobuf.Service;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.jboss.netty.channel.*;
 import tajo.rpc.RpcProtos.RpcRequest;
 import tajo.rpc.RpcProtos.RpcResponse;
+
+import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
 
 public class ProtoAsyncRpcServer extends NettyServerBase {
   private static final Log LOG = LogFactory.getLog(ProtoAsyncRpcServer.class);
@@ -41,9 +34,19 @@ public class ProtoAsyncRpcServer extends NettyServerBase {
   private final Service service;
   private final ChannelPipelineFactory pipeline;
 
-  public ProtoAsyncRpcServer(Service instance, InetSocketAddress bindAddress) {
+  public ProtoAsyncRpcServer(final Class<?> protocol,
+                             final Object instance,
+                             final InetSocketAddress bindAddress)
+      throws Exception {
     super(bindAddress);
-    this.service = instance;
+
+    String serviceClassName = protocol.getName() + "$" +
+        protocol.getSimpleName() + "Service";
+    Class<?> serviceClass = Class.forName(serviceClassName);
+    Class<?> interfaceClass = Class.forName(serviceClassName + "$Interface");
+    Method method = serviceClass.getMethod("newReflectiveService", interfaceClass);
+    this.service = (Service) method.invoke(null, instance);
+
     ServerHandler handler = new ServerHandler();
     this.pipeline = new ProtoPipelineFactory(handler,
         RpcRequest.getDefaultInstance());
@@ -58,10 +61,8 @@ public class ProtoAsyncRpcServer extends NettyServerBase {
 
       final RpcRequest request = (RpcRequest) e.getMessage();
 
-      String methodName = request.getMethodName();
-
       MethodDescriptor methodDescriptor = service.getDescriptorForType().
-          findMethodByName(methodName);
+          findMethodByName(request.getMethodName());
 
       Message methodRequest = null;
       try {
@@ -74,8 +75,11 @@ public class ProtoAsyncRpcServer extends NettyServerBase {
 
       final Channel channel = e.getChannel();
 
-      RpcCallback<Message> callback = !request.hasId() ? null : new RpcCallback<Message>() {
+      RpcCallback<Message> callback =
+          !request.hasId() ? null : new RpcCallback<Message>() {
+
         public void run(Message methodResponse) {
+
           if (methodResponse != null) {
             channel.write(RpcResponse.newBuilder()
                 .setId(request.getId())
@@ -94,7 +98,8 @@ public class ProtoAsyncRpcServer extends NettyServerBase {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
-      e.getChannel().close();
+      LOG.error(e.getCause());
+      shutdown();
     }
   }
 }

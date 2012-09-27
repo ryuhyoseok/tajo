@@ -18,6 +18,7 @@ package tajo.rpc;
 
 import java.util.concurrent.*;
 
+@Deprecated
 class CallFuture implements Future<Object> {
   private Semaphore sem = new Semaphore(0);
   private Object response = null;

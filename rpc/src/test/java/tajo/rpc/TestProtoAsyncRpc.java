@@ -23,6 +23,7 @@ import tajo.rpc.test.DummyProtocol.DummyProtocolService.Interface;
 import tajo.rpc.test.TestProtos.EchoMessage;
 import tajo.rpc.test.TestProtos.SumRequest;
 import tajo.rpc.test.TestProtos.SumResponse;
+import tajo.rpc.test.impl.DummyProtocolAsyncImpl;
 
 import java.net.InetSocketAddress;
 
@@ -37,16 +38,12 @@ public class TestProtoAsyncRpc {
 
   @Test
   public void testRpc() throws Exception {
-    ProtoAsyncRpcServer server =
-        NettyRpc.getProtoAsyncRpcServer(
-            DummyProtocol.class,
-            new InetSocketAddress(10003));
+    ProtoAsyncRpcServer server = new ProtoAsyncRpcServer(DummyProtocol.class,
+        new DummyProtocolAsyncImpl(), new InetSocketAddress(10003));
     server.start();
 
-    Interface service = (Interface)
-        NettyRpc.getProtoAsyncRpcProxy(DummyProtocol.class,
-        new InetSocketAddress(10003));
-
+    ProtoAsyncRpcClient client = new ProtoAsyncRpcClient(new InetSocketAddress(10003));
+    Interface service = client.getStub(DummyProtocol.class);
 
     SumRequest sumRequest = SumRequest.newBuilder()
         .setX1(1)
@@ -58,6 +55,7 @@ public class TestProtoAsyncRpc {
       @Override
       public void run(SumResponse parameter) {
         sum = parameter.getResult();
+        assertTrue(8.15d == sum);
       }
     });
 
@@ -69,11 +67,12 @@ public class TestProtoAsyncRpc {
       @Override
       public void run(EchoMessage parameter) {
         echo = parameter.getMessage();
+        assertEquals(MESSAGE, echo);
       }
     });
-    server.shutdown();
 
-    assertTrue(8.15d == sum);
-    assertEquals(MESSAGE, echo);
+    Thread.sleep(1000);
+    client.close();
+    server.shutdown();
   }
 }
