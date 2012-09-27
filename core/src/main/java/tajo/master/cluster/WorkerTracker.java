@@ -26,6 +26,7 @@ import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.zookeeper.KeeperException;
 import tajo.NConstants;
+import tajo.master.cluster.ClusterManager.WorkerResource;
 import tajo.master.cluster.event.WorkerEvent;
 import tajo.master.cluster.event.WorkerEventType;
 import tajo.zookeeper.BasicZkListener;
@@ -33,7 +34,9 @@ import tajo.zookeeper.ZkClient;
 import tajo.zookeeper.ZkListener;
 import tajo.zookeeper.ZkUtil;
 
+import java.net.InetSocketAddress;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -45,6 +48,9 @@ public class WorkerTracker extends AbstractService implements ZkListener {
   private final EventHandler eventHandler;
   private final Lock readLock;
   private final Lock writeLock;
+
+  private final Map<InetSocketAddress, WorkerResource> workers
+      = new ConcurrentHashMap<>();
 
   public WorkerTracker(ZkClient client, EventHandler eventHandler)
       throws Exception {
