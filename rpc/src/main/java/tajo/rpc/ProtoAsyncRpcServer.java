@@ -1,4 +1,6 @@
 /*
+ * Copyright 2012 Database Lab., Korea Univ.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,8 +16,11 @@
 
 package tajo.rpc;
 
-import com.google.protobuf.*;
 import com.google.protobuf.Descriptors.MethodDescriptor;
+import com.google.protobuf.Message;
+import com.google.protobuf.RpcCallback;
+import com.google.protobuf.RpcController;
+import com.google.protobuf.Service;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.channel.*;
@@ -25,6 +30,9 @@ import tajo.rpc.RpcProtos.RpcResponse;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 
+/**
+ * @author Hyunsik Choi
+ */
 public class ProtoAsyncRpcServer extends NettyServerBase {
   private static final Log LOG = LogFactory.getLog(ProtoAsyncRpcServer.class);
 
@@ -58,13 +66,19 @@ public class ProtoAsyncRpcServer extends NettyServerBase {
 
       final RpcRequest request = (RpcRequest) e.getMessage();
 
+      String methodName = request.getMethodName();
       MethodDescriptor methodDescriptor = service.getDescriptorForType().
-          findMethodByName(request.getMethodName());
+          findMethodByName(methodName);
 
-      Message methodRequest = null;
+      if (methodDescriptor == null) {
+        throw new RemoteCallException(request.getId(),
+            new NoSuchMethodException(methodName));
+      }
+
+      Message paramProto = null;
       if (request.hasRequestMessage()) {
         try {
-          methodRequest = service.getRequestPrototype(methodDescriptor)
+          paramProto = service.getRequestPrototype(methodDescriptor)
                   .newBuilderForType().mergeFrom(request.getRequestMessage()).
                   build();
         } catch (Throwable t) {
@@ -78,13 +92,13 @@ public class ProtoAsyncRpcServer extends NettyServerBase {
       RpcCallback<Message> callback =
           !request.hasId() ? null : new RpcCallback<Message>() {
 
-        public void run(Message methodResponse) {
+        public void run(Message returnValue) {
 
           RpcResponse.Builder builder = RpcResponse.newBuilder()
               .setId(request.getId());
 
-          if (methodResponse != null) {
-            builder.setResponseMessage(methodResponse.toByteString());
+          if (returnValue != null) {
+            builder.setResponseMessage(returnValue.toByteString());
           }
 
           if (controller.failed()) {
@@ -95,7 +109,7 @@ public class ProtoAsyncRpcServer extends NettyServerBase {
         }
       };
 
-      service.callMethod(methodDescriptor, controller, methodRequest, callback);
+      service.callMethod(methodDescriptor, controller, paramProto, callback);
     }
 
     @Override
@@ -105,6 +119,7 @@ public class ProtoAsyncRpcServer extends NettyServerBase {
         RemoteCallException callException = (RemoteCallException) e.getCause();
         e.getChannel().write(callException.getResponse());
       }
+
       throw new RemoteException(e.getCause());
     }
   }

@@ -23,20 +23,17 @@ import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.channel.*;
 import tajo.rpc.RpcProtos.RpcRequest;
 import tajo.rpc.RpcProtos.RpcResponse;
-import tajo.rpc.test.TestProtos.EchoMessage;
 import tajo.util.NetUtils;
 
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.io.Writer;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * @author Hyunsik Choi
+ */
 public class ProtoAsyncRpcClient extends NettyClientBase {
   private static final Log LOG = LogFactory.getLog(RpcProtos.class);
 
@@ -51,12 +48,13 @@ public class ProtoAsyncRpcClient extends NettyClientBase {
   private final Class<?> protocol;
   private final Method stubMethod;
 
-  public ProtoAsyncRpcClient(final Class<?> protocol, final InetSocketAddress addr)
+  public ProtoAsyncRpcClient(final Class<?> protocol,
+                             final InetSocketAddress addr)
       throws Exception {
+
     this.protocol = protocol;
     String serviceClassName = protocol.getName() + "$"
         + protocol.getSimpleName() + "Service";
-
     Class<?> serviceClass = Class.forName(serviceClassName);
     stubMethod = serviceClass.getMethod("newStub", RpcChannel.class);
 
@@ -69,6 +67,10 @@ public class ProtoAsyncRpcClient extends NettyClientBase {
 
   public <T> T getStub() throws Exception {
     return (T) stubMethod.invoke(null, rpcChannel);
+  }
+
+  public RpcChannel getRpcChannel() {
+    return this.rpcChannel;
   }
 
   private class ProxyRpcChannel implements RpcChannel {
@@ -94,23 +96,23 @@ public class ProtoAsyncRpcClient extends NettyClientBase {
 
       int nextSeqId = sequence.getAndIncrement();
 
-      Message request = buildRequest(nextSeqId, method, param);
+      Message rpcRequest = buildRequest(nextSeqId, method, param);
 
       handler.registerCallback(nextSeqId,
           new ResponseCallback(controller, responseType, done));
-      channel.write(request);
+      channel.write(rpcRequest);
     }
 
     private Message buildRequest(int seqId,
                                  MethodDescriptor method,
-                                 Message request) {
+                                 Message param) {
 
       RpcRequest.Builder requestBuilder = RpcRequest.newBuilder()
           .setId(seqId)
           .setMethodName(method.getName());
 
-      if (request != null) {
-          requestBuilder.setRequestMessage(request.toByteString());
+      if (param != null) {
+          requestBuilder.setRequestMessage(param.toByteString());
       }
 
       return requestBuilder.build();

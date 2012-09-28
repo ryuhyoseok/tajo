@@ -16,6 +16,9 @@
 
 package tajo.rpc;
 
+import com.google.protobuf.RpcController;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import tajo.rpc.test.DummyProtocol;
 import tajo.rpc.test.DummyProtocol.DummyProtocolService.BlockingInterface;
@@ -26,38 +29,66 @@ import tajo.rpc.test.impl.DummyProtocolBlockingImpl;
 
 import java.net.InetSocketAddress;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class TestProtoBlockingRpc {
   public static String MESSAGE = "TestProtoBlockingRpc";
 
-  @Test
-  public void testRpc() throws Exception {
-    ProtoBlockingRpcServer server =
-        new ProtoBlockingRpcServer(DummyProtocol.class,
-            new DummyProtocolBlockingImpl(),
-            new InetSocketAddress(10000));
+  private static ProtoBlockingRpcServer server;
+  private static ProtoBlockingRpcClient client;
+  private static BlockingInterface stub;
+  private static DummyProtocolBlockingImpl service;
+
+  @BeforeClass
+  public static void setUp() throws Exception {
+    service = new DummyProtocolBlockingImpl();
+    server = new ProtoBlockingRpcServer(DummyProtocol.class, service,
+        new InetSocketAddress(10000));
     server.start();
 
-    ProtoBlockingRpcClient client = new ProtoBlockingRpcClient(
+    client = new ProtoBlockingRpcClient(DummyProtocol.class,
         new InetSocketAddress(10000));
-    BlockingInterface service = client.getStub(DummyProtocol.class);
+    stub = client.getStub();
+  }
 
+  @AfterClass
+  public static void tearDown() throws Exception {
+    client.close();
+    server.shutdown();
+  }
+
+  @Test
+  public void testRpc() throws Exception {
     SumRequest request = SumRequest.newBuilder()
         .setX1(1)
         .setX2(2)
         .setX3(3.15d)
         .setX4(2.0f).build();
-    SumResponse response1 = service.sum(null, request);
+    SumResponse response1 = stub.sum(null, request);
     assertTrue(8.15d == response1.getResult());
 
     EchoMessage message = EchoMessage.newBuilder()
         .setMessage(MESSAGE).build();
-    EchoMessage response2 = service.echo(null, message);
+    EchoMessage response2 = stub.echo(null, message);
     assertEquals(MESSAGE, response2.getMessage());
+  }
 
-    client.close();
-    server.shutdown();
+  @Test
+  public void testGetNull() throws Exception {
+    assertNull(stub.getNull(null, null));
+    assertTrue(service.getNullCalled);
+  }
+
+  @Test
+  public void testGetError() throws Exception {
+    EchoMessage echoMessage2 = EchoMessage.newBuilder()
+        .setMessage("[Don't Worry! It's an exception message for unit test]").
+            build();
+
+    RpcController controller = new NettyRpcController();
+    assertNull(stub.getError(controller, echoMessage2));
+    assertTrue(service.getErrorCalled);
+    assertTrue(controller.failed());
+    assertEquals(echoMessage2.getMessage(), controller.errorText());
   }
 }

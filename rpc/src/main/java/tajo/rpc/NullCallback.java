@@ -34,4 +34,3 @@ public class NullCallback implements RpcCallback {
     // do nothing
   }
 }
-                                 gd

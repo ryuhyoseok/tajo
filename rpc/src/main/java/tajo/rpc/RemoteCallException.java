@@ -32,6 +32,11 @@ public class RemoteCallException extends RemoteException {
     this.seqId = seqId;
   }
 
+  public RemoteCallException(int seqId, Throwable t) {
+    super(t);
+    this.seqId = seqId;
+  }
+
   public RpcResponse getResponse() {
     RpcResponse.Builder builder = RpcResponse.newBuilder();
     builder.setId(seqId);

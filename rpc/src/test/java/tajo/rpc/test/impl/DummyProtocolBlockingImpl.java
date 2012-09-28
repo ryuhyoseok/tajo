@@ -28,7 +28,8 @@ import tajo.rpc.test.TestProtos.SumResponse;
 public class DummyProtocolBlockingImpl implements BlockingInterface {
   private static final Log LOG =
       LogFactory.getLog(DummyProtocolBlockingImpl.class);
-  public boolean called;
+  public boolean getNullCalled = false;
+  public boolean getErrorCalled = false;
 
   @Override
   public SumResponse sum(RpcController controller, SumRequest request)
@@ -48,14 +49,15 @@ public class DummyProtocolBlockingImpl implements BlockingInterface {
   @Override
   public EchoMessage getError(RpcController controller, EchoMessage request)
       throws ServiceException {
+    getErrorCalled = true;
     controller.setFailed(request.getMessage());
-    return EchoMessage.newBuilder().setMessage(request.getMessage()).build();
+    return request;
   }
 
   @Override
   public EchoMessage getNull(RpcController controller, EchoMessage request)
       throws ServiceException {
-    called = true;
+    getNullCalled = true;
     LOG.info("noCallback is called");
     return null;
   }

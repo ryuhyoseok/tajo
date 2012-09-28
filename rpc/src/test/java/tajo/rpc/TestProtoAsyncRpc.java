@@ -34,9 +34,7 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class TestProtoAsyncRpc {
   private static Log LOG = LogFactory.getLog(TestProtoAsyncRpc.class);
@@ -132,7 +130,7 @@ public class TestProtoAsyncRpc {
       }
     });
     testGetErrorLatch.await(1000, TimeUnit.MILLISECONDS);
-
+    assertTrue(service.getErrorCalled);
     assertTrue(controller.failed());
     assertEquals(echoMessage2.getMessage(), controller.errorText());
   }
