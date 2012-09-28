@@ -85,8 +85,8 @@ public class ProtoBlockingRpcServer extends NettyServerBase {
         RpcController controller = new NettyRpcController();
 
         try {
-          methodResponse = service.callBlockingMethod(methodDescriptor, controller,
-              paramProto);
+          methodResponse = service.callBlockingMethod(methodDescriptor,
+              controller, paramProto);
         } catch (ServiceException se) {
           LOG.error(se.getMessage());
         }
