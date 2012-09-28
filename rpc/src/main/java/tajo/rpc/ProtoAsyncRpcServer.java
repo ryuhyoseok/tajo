@@ -14,11 +14,8 @@
 
 package tajo.rpc;
 
+import com.google.protobuf.*;
 import com.google.protobuf.Descriptors.MethodDescriptor;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.Message;
-import com.google.protobuf.RpcCallback;
-import com.google.protobuf.Service;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.channel.*;
@@ -65,41 +62,50 @@ public class ProtoAsyncRpcServer extends NettyServerBase {
           findMethodByName(request.getMethodName());
 
       Message methodRequest = null;
-      try {
-        methodRequest = service.getRequestPrototype(methodDescriptor)
-                .newBuilderForType().mergeFrom(request.getRequestMessage()).
-                build();
-      } catch (InvalidProtocolBufferException ipb) {
-        LOG.error(ipb.getMessage());
+      if (request.hasRequestMessage()) {
+        try {
+          methodRequest = service.getRequestPrototype(methodDescriptor)
+                  .newBuilderForType().mergeFrom(request.getRequestMessage()).
+                  build();
+        } catch (Throwable t) {
+          throw new RemoteCallException(request.getId(), methodDescriptor, t);
+        }
       }
 
       final Channel channel = e.getChannel();
+      final RpcController controller = new NettyRpcController();
 
       RpcCallback<Message> callback =
           !request.hasId() ? null : new RpcCallback<Message>() {
 
         public void run(Message methodResponse) {
 
+          RpcResponse.Builder builder = RpcResponse.newBuilder()
+              .setId(request.getId());
+
           if (methodResponse != null) {
-            channel.write(RpcResponse.newBuilder()
-                .setId(request.getId())
-                .setResponseMessage(methodResponse.toByteString())
-                .build());
-          } else { // when it returns null
-            RpcResponse.Builder builder = RpcResponse.newBuilder()
-                .setId(request.getId());
-            channel.write(builder.build());
+            builder.setResponseMessage(methodResponse.toByteString());
           }
+
+          if (controller.failed()) {
+            builder.setErrorMessage(controller.errorText());
+          }
+
+          channel.write(builder.build());
         }
       };
 
-      service.callMethod(methodDescriptor, null, methodRequest, callback);
+      service.callMethod(methodDescriptor, controller, methodRequest, callback);
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
-      LOG.error(e.getCause());
-      shutdown();
+    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
+        throws Exception{
+      if (e.getCause() instanceof RemoteCallException) {
+        RemoteCallException callException = (RemoteCallException) e.getCause();
+        e.getChannel().write(callException.getResponse());
+      }
+      throw new RemoteException(e.getCause());
     }
   }
 }

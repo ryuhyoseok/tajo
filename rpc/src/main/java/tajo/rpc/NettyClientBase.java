@@ -66,7 +66,11 @@ public class NettyClientBase implements Closeable {
     this.channel = channelFuture.getChannel();
   }
 
-  public InetSocketAddress getAddress() {
+  public boolean isConnected() {
+    return getChannel().isConnected();
+  }
+
+  public InetSocketAddress getRemoteAddress() {
     return this.addr;
   }
 

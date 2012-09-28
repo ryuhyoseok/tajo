@@ -18,9 +18,9 @@ option java_package = "tajo.rpc";
 option java_outer_classname = "RpcProtos";
 
 message RpcRequest {
-  optional int32 id = 1;
+  required int32 id = 1;
   required string method_name = 2;
-  required bytes request_message = 3;
+  optional bytes request_message = 3;
 }
 
 message RpcResponse {

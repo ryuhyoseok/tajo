@@ -18,6 +18,8 @@ package tajo.rpc.test.impl;
 
 import com.google.protobuf.RpcCallback;
 import com.google.protobuf.RpcController;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import tajo.rpc.test.DummyProtocol.DummyProtocolService.Interface;
 import tajo.rpc.test.TestProtos.EchoMessage;
 import tajo.rpc.test.TestProtos.SumRequest;
@@ -25,6 +27,10 @@ import tajo.rpc.test.TestProtos.SumResponse;
 
 @SuppressWarnings("UnusedDeclaration")
 public class DummyProtocolAsyncImpl implements Interface {
+  private static final Log LOG =
+      LogFactory.getLog(DummyProtocolAsyncImpl.class);
+  public boolean getNullCalled = false;
+  public boolean getErrorCalled = false;
 
   @Override
   public void sum(RpcController controller, SumRequest request,
@@ -40,16 +46,23 @@ public class DummyProtocolAsyncImpl implements Interface {
   public void echo(RpcController controller, EchoMessage request,
                    RpcCallback<EchoMessage> done) {
 
-    done.run(
-        EchoMessage.newBuilder().
-            setMessage(request.getMessage()).build()
-    );
+    done.run(request);
   }
 
   @Override
-  public void error(RpcController controller, EchoMessage request,
-                    RpcCallback<EchoMessage> done) {
-    controller.setFailed("Fatal Error!");
+  public void getError(RpcController controller, EchoMessage request,
+                       RpcCallback<EchoMessage> done) {
+    LOG.info("noCallback is called");
+    getErrorCalled = true;
+    controller.setFailed(request.getMessage());
+    done.run(request);
+  }
+
+  @Override
+  public void getNull(RpcController controller, EchoMessage request,
+                      RpcCallback<EchoMessage> done) {
+    getNullCalled = true;
+    LOG.info("noCallback is called");
     done.run(null);
   }
 }

@@ -17,6 +17,11 @@
 package tajo.rpc;
 
 import com.google.protobuf.RpcCallback;
+import com.google.protobuf.RpcController;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import tajo.rpc.test.DummyProtocol;
 import tajo.rpc.test.DummyProtocol.DummyProtocolService.Interface;
@@ -26,24 +31,43 @@ import tajo.rpc.test.TestProtos.SumResponse;
 import tajo.rpc.test.impl.DummyProtocolAsyncImpl;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class TestProtoAsyncRpc {
+  private static Log LOG = LogFactory.getLog(TestProtoAsyncRpc.class);
   private static String MESSAGE = "TestProtoAsyncRpc";
 
   double sum;
   String echo;
 
+  static ProtoAsyncRpcServer server;
+  static ProtoAsyncRpcClient client;
+  static Interface stub;
+  static DummyProtocolAsyncImpl service;
+
+  @BeforeClass
+  public static void setUp() throws Exception {
+    service = new DummyProtocolAsyncImpl();
+    server = new ProtoAsyncRpcServer(DummyProtocol.class,
+        service, new InetSocketAddress(10003));
+    server.start();
+    client = new ProtoAsyncRpcClient(DummyProtocol.class, new InetSocketAddress(10003));
+    stub = client.getStub();
+  }
+
+  @AfterClass
+  public static void tearDown() throws Exception {
+    client.close();
+    server.shutdown();
+  }
+
   @Test
   public void testRpc() throws Exception {
-    ProtoAsyncRpcServer server = new ProtoAsyncRpcServer(DummyProtocol.class,
-        new DummyProtocolAsyncImpl(), new InetSocketAddress(10003));
-    server.start();
-
-    ProtoAsyncRpcClient client = new ProtoAsyncRpcClient(new InetSocketAddress(10003));
-    Interface service = client.getStub(DummyProtocol.class);
 
     SumRequest sumRequest = SumRequest.newBuilder()
         .setX1(1)
@@ -51,7 +75,7 @@ public class TestProtoAsyncRpc {
         .setX3(3.15d)
         .setX4(2.0f).build();
 
-    service.sum(null, sumRequest, new RpcCallback<SumResponse>() {
+    stub.sum(null, sumRequest, new RpcCallback<SumResponse>() {
       @Override
       public void run(SumResponse parameter) {
         sum = parameter.getResult();
@@ -63,16 +87,53 @@ public class TestProtoAsyncRpc {
     EchoMessage echoMessage = EchoMessage.newBuilder()
         .setMessage(MESSAGE).build();
 
-    service.echo(null, echoMessage, new RpcCallback<EchoMessage>() {
+    stub.echo(null, echoMessage, new RpcCallback<EchoMessage>() {
       @Override
       public void run(EchoMessage parameter) {
         echo = parameter.getMessage();
         assertEquals(MESSAGE, echo);
       }
     });
+  }
 
-    Thread.sleep(1000);
-    client.close();
-    server.shutdown();
+  private CountDownLatch testNullLatch;
+
+  @Test
+  public void testGetNull() throws Exception {
+    testNullLatch = new CountDownLatch(1);
+    stub.getNull(null, null, new RpcCallback<EchoMessage>() {
+      @Override
+      public void run(EchoMessage parameter) {
+        assertNull(parameter);
+        LOG.info("testGetNull retrieved");
+        testNullLatch.countDown();
+      }
+    });
+    testNullLatch.await(1000, TimeUnit.MILLISECONDS);
+    assertTrue(service.getNullCalled);
+  }
+
+  private CountDownLatch testGetErrorLatch;
+
+  @Test
+  public void testGetError() throws Exception {
+    EchoMessage echoMessage2 = EchoMessage.newBuilder()
+        .setMessage("[Don't Worry! It's an exception message for unit test]").
+            build();
+
+    testGetErrorLatch = new CountDownLatch(1);
+    RpcController controller = new NettyRpcController();
+    stub.getError(controller, echoMessage2, new RpcCallback<EchoMessage>() {
+      @Override
+      public void run(EchoMessage parameter) {
+        assertNull(parameter);
+        LOG.info("testGetError retrieved");
+        testGetErrorLatch.countDown();
+      }
+    });
+    testGetErrorLatch.await(1000, TimeUnit.MILLISECONDS);
+
+    assertTrue(controller.failed());
+    assertEquals(echoMessage2.getMessage(), controller.errorText());
   }
 }

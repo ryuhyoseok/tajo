@@ -23,7 +23,14 @@ import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.channel.*;
 import tajo.rpc.RpcProtos.RpcRequest;
 import tajo.rpc.RpcProtos.RpcResponse;
+import tajo.rpc.test.TestProtos.EchoMessage;
+import tajo.util.NetUtils;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.Map;
@@ -41,7 +48,18 @@ public class ProtoAsyncRpcClient extends NettyClientBase {
   private final Map<Integer, ResponseCallback> requests =
       new ConcurrentHashMap<>();
 
-  public ProtoAsyncRpcClient(final InetSocketAddress addr) {
+  private final Class<?> protocol;
+  private final Method stubMethod;
+
+  public ProtoAsyncRpcClient(final Class<?> protocol, final InetSocketAddress addr)
+      throws Exception {
+    this.protocol = protocol;
+    String serviceClassName = protocol.getName() + "$"
+        + protocol.getSimpleName() + "Service";
+
+    Class<?> serviceClass = Class.forName(serviceClassName);
+    stubMethod = serviceClass.getMethod("newStub", RpcChannel.class);
+
     this.handler = new ClientChannelUpstreamHandler();
     pipeFactory = new ProtoPipelineFactory(handler,
         RpcResponse.getDefaultInstance());
@@ -49,15 +67,8 @@ public class ProtoAsyncRpcClient extends NettyClientBase {
     rpcChannel = new ProxyRpcChannel(getChannel());
   }
 
-  public <T> T getStub(Class<?> protocol)
-      throws Exception {
-    String serviceClassName = protocol.getName() + "$"
-        + protocol.getSimpleName() + "Service";
-
-    Class<?> serviceClass = Class.forName(serviceClassName);
-    Method method = serviceClass.getMethod("newStub", RpcChannel.class);
-
-    return (T) method.invoke(null, rpcChannel);
+  public <T> T getStub() throws Exception {
+    return (T) stubMethod.invoke(null, rpcChannel);
   }
 
   private class ProxyRpcChannel implements RpcChannel {
@@ -83,29 +94,26 @@ public class ProtoAsyncRpcClient extends NettyClientBase {
 
       int nextSeqId = sequence.getAndIncrement();
 
-      Message request = buildRequest(done != null, nextSeqId, method, param);
+      Message request = buildRequest(nextSeqId, method, param);
 
-      if (done != null) {
-        handler.registerCallback(nextSeqId, new ResponseCallback(controller,
-            responseType, done));
-      }
+      handler.registerCallback(nextSeqId,
+          new ResponseCallback(controller, responseType, done));
       channel.write(request);
     }
 
-    private Message buildRequest(boolean hasSequence, int seqId,
+    private Message buildRequest(int seqId,
                                  MethodDescriptor method,
                                  Message request) {
 
-      RpcRequest.Builder requestBuilder = RpcRequest.newBuilder();
+      RpcRequest.Builder requestBuilder = RpcRequest.newBuilder()
+          .setId(seqId)
+          .setMethodName(method.getName());
 
-      if (hasSequence) {
-        requestBuilder.setId(seqId);
+      if (request != null) {
+          requestBuilder.setRequestMessage(request.toByteString());
       }
 
-      return requestBuilder
-          .setMethodName(method.getName())
-          .setRequestMessage(request.toByteString())
-          .build();
+      return requestBuilder.build();
     }
   }
 
@@ -124,29 +132,40 @@ public class ProtoAsyncRpcClient extends NettyClientBase {
 
     public void run(RpcResponse rpcResponse) {
 
-      if (controller != null || rpcResponse.hasErrorMessage()) {
-        this.controller.setFailed(rpcResponse.getErrorMessage());
-      } else {
-        try {
+      // if hasErrorMessage is true, it means rpc-level errors.
+      // it does not call the callback function
+      if (rpcResponse.hasErrorMessage()) {
 
+        if (controller != null) {
+          this.controller.setFailed(rpcResponse.getErrorMessage());
+        }
+        callback.run(null);
+        throw new RemoteException(getErrorMessage(rpcResponse.getErrorMessage()));
+
+      } else { // if rpc call succeed
+
+        try {
           Message responseMessage;
-          if (rpcResponse == null || !rpcResponse.hasResponseMessage()) {
+          if (!rpcResponse.hasResponseMessage()) {
             responseMessage = null;
           } else {
             responseMessage = responsePrototype.newBuilderForType().mergeFrom(
                 rpcResponse.getResponseMessage()).build();
           }
+
           callback.run(responseMessage);
 
         } catch (InvalidProtocolBufferException e) {
-          LOG.error(e);
-          if (controller != null) {
-            this.controller.setFailed(e.getMessage());
-          }
-          callback.run(null);
+          throw new RemoteException(getErrorMessage(""), e);
         }
       }
     }
+  }
+
+  private String getErrorMessage(String message) {
+    return "Exception [" + protocol.getCanonicalName() +
+        "(" + NetUtils.getIpPortString((InetSocketAddress)
+        getChannel().getRemoteAddress()) + ")]: " + message;
   }
 
   private class ClientChannelUpstreamHandler extends SimpleChannelUpstreamHandler {
@@ -154,7 +173,8 @@ public class ProtoAsyncRpcClient extends NettyClientBase {
     synchronized void registerCallback(int seqId, ResponseCallback callback) {
 
       if (requests.containsKey(seqId)) {
-        throw new IllegalArgumentException("Duplicated call");
+        throw new RemoteException(
+            getErrorMessage("Duplicate Sequence Id "+ seqId));
       }
 
       requests.put(seqId, callback);
@@ -168,8 +188,7 @@ public class ProtoAsyncRpcClient extends NettyClientBase {
       ResponseCallback callback = requests.remove(response.getId());
 
       if (callback == null) {
-        LOG.error("dangling rpc call");
-
+        LOG.warn("Dangling rpc call");
       } else {
         callback.run(response);
       }
@@ -179,7 +198,7 @@ public class ProtoAsyncRpcClient extends NettyClientBase {
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
         throws Exception {
       e.getChannel().close();
-      LOG.error(e.getCause());
+      throw new RemoteException(getErrorMessage(""), e.getCause());
     }
   }
 }

@@ -18,12 +18,17 @@ package tajo.rpc.test.impl;
 
 import com.google.protobuf.RpcController;
 import com.google.protobuf.ServiceException;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import tajo.rpc.test.DummyProtocol.DummyProtocolService.BlockingInterface;
 import tajo.rpc.test.TestProtos.EchoMessage;
 import tajo.rpc.test.TestProtos.SumRequest;
 import tajo.rpc.test.TestProtos.SumResponse;
 
 public class DummyProtocolBlockingImpl implements BlockingInterface {
+  private static final Log LOG =
+      LogFactory.getLog(DummyProtocolBlockingImpl.class);
+  public boolean called;
 
   @Override
   public SumResponse sum(RpcController controller, SumRequest request)
@@ -41,9 +46,17 @@ public class DummyProtocolBlockingImpl implements BlockingInterface {
   }
 
   @Override
-  public EchoMessage error(RpcController controller, EchoMessage request)
+  public EchoMessage getError(RpcController controller, EchoMessage request)
       throws ServiceException {
-    controller.setFailed("Fatal Error!");;
+    controller.setFailed(request.getMessage());
+    return EchoMessage.newBuilder().setMessage(request.getMessage()).build();
+  }
+
+  @Override
+  public EchoMessage getNull(RpcController controller, EchoMessage request)
+      throws ServiceException {
+    called = true;
+    LOG.info("noCallback is called");
     return null;
   }
 }

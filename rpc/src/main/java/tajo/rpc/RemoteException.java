@@ -17,11 +17,6 @@
 package tajo.rpc;
 
 public class RemoteException extends RuntimeException {
-  /**
-   * 
-   */
-  private static final long serialVersionUID = 1L;
-
   public RemoteException() {
     super();
   }
@@ -29,8 +24,12 @@ public class RemoteException extends RuntimeException {
   public RemoteException(String message) {
     super(message);
   }
-  
+
   public RemoteException(Throwable t) {
     super(t);
+  }
+
+  public RemoteException(String message, Throwable t) {
+    super(message, t);
   }
 }
