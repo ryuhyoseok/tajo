@@ -52,18 +52,21 @@ public class Fragment implements TableDesc, Comparable<Fragment>, SchemaObject {
   @Expose
   private Boolean distCached;
 
+  private String [] dataLocations;
+
   public Fragment() {
     builder = TabletProto.newBuilder();
   }
 
   public Fragment(String fragmentId, Path path, TableMeta meta, long start,
-      long length) {
+      long length, String [] dataLocations) {
     this();
     TableMeta newMeta = new TableMetaImpl(meta.getProto());
     SchemaProto newSchemaProto = TCatUtil.getQualfiedSchema(fragmentId, meta
         .getSchema().getProto());
     newMeta.setSchema(new Schema(newSchemaProto));
     this.set(fragmentId, path, newMeta, start, length);
+    this.dataLocations = dataLocations;
   }
 
   public Fragment(TabletProto proto) {
@@ -74,6 +77,14 @@ public class Fragment implements TableDesc, Comparable<Fragment>, SchemaObject {
     if (proto.hasDistCached() && proto.getDistCached()) {
       distCached = true;
     }
+  }
+
+  public boolean hasDataLocations() {
+    return this.dataLocations != null;
+  }
+
+  public String [] getDataLocations() {
+    return this.dataLocations;
   }
 
   private void set(String fragmentId, Path path, TableMeta meta, long start,

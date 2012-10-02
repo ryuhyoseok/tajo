@@ -76,7 +76,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
     
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("long"), true, false);
@@ -182,7 +182,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
 
     tuple = new VTuple(keySchema.getColumnNum());
     BSTIndexReader reader = bst.getIndexReader(new Path(TEST_PATH, "BuildIndexWithAppender.idx"), keySchema, comp);
@@ -230,7 +230,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
     
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("long"), true, false);
@@ -296,7 +296,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
     
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("int"), true, false);
@@ -378,7 +378,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
     
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("int"), true, false);
@@ -453,7 +453,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
     
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("long"), false, false);
@@ -526,7 +526,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
     
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("long"), false, false);
@@ -594,7 +594,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
     
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("int"), true, false);
@@ -676,7 +676,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
     
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("int"), true, false);
@@ -749,7 +749,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
     
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("int"), true, false);
@@ -832,7 +832,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
 
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("long"), true, false);
@@ -906,7 +906,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
 
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("int"), true, false);
@@ -1006,7 +1006,7 @@ public class TestBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
 
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("int"), true, false);

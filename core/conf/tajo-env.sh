@@ -16,6 +16,7 @@ export TAJO_HEAPSIZE=12000
 
 # Extra Java runtime options.  Empty by default.
 # export TAJO_OPTS=-server
+export TAJO_OPTS=-XX:+PrintGCTimeStamps
 
 # Command specific options appended to TAJO_OPTS when specified
 #export TAJO_NAMENODE_OPTS="-Dcom.sun.management.jmxremote $TAJO_NAMENODE_OPTS"

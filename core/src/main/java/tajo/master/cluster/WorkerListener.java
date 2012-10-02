@@ -40,8 +40,6 @@ import tajo.ipc.MasterWorkerProtocol.WorkerId;
 import tajo.ipc.StatusReport;
 import tajo.master.TajoMaster.MasterContext;
 import tajo.master.event.TaskAttemptStatusUpdateEvent;
-import tajo.rpc.NettyRpc;
-import tajo.rpc.NettyRpcServer;
 import tajo.rpc.ProtoAsyncRpcServer;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
 

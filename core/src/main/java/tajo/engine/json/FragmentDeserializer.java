@@ -33,7 +33,7 @@ public class FragmentDeserializer implements JsonDeserializer<Fragment> {
 				gson.fromJson(fragObj.get("path"), Path.class), 
 				meta, 
 				fragObj.get("startOffset").getAsLong(), 
-				fragObj.get("length").getAsLong());
+				fragObj.get("length").getAsLong(), null);
 		return fragment;
 	}
 

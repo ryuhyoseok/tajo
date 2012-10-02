@@ -54,6 +54,7 @@ public class QueryUnit implements EventHandler<TaskEvent> {
 	
   private List<Partition> partitions;
 	private TableStat stats;
+  private String [] dataLocations;
 
   private Map<QueryUnitAttemptId, QueryUnitAttempt> attempts;
   private final int maxAttempts = 3;
@@ -107,6 +108,14 @@ public class QueryUnit implements EventHandler<TaskEvent> {
     stateMachine = stateMachineFactory.make(this);
 	}
 
+  public void setDataLocations(String [] dataLocations) {
+    this.dataLocations = dataLocations;
+  }
+
+  public String [] getDataLocations() {
+    return this.dataLocations;
+  }
+
   public TaskState getState() {
     readLock.lock();
     try {
@@ -146,6 +155,9 @@ public class QueryUnit implements EventHandler<TaskEvent> {
 
   public void setFragment(String tableId, Fragment fragment) {
     this.fragMap.put(tableId, fragment);
+    if (fragment.hasDataLocations()) {
+      setDataLocations(fragment.getDataLocations());
+    }
   }
 	
 	public void addFetch(String tableId, String uri) throws URISyntaxException {

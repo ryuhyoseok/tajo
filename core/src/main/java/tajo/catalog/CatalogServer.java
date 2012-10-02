@@ -286,7 +286,7 @@ public class CatalogServer extends Thread implements CatalogServiceProtocol {
         // TODO: select the proper serving node for block
         tabletInfoList.add(new FragmentServInfo(hosts[0], -1, new Fragment(desc.getId(),
             files[fileIdx].getPath(), new TableMetaImpl(desc.getMeta()), 
-            blocks[blockIdx].getOffset(), blocks[blockIdx].getLength())));
+            blocks[blockIdx].getOffset(), blocks[blockIdx].getLength(), hosts)));
       }
     }
     long after = System.currentTimeMillis();

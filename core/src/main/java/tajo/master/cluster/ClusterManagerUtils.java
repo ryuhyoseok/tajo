@@ -91,7 +91,7 @@ public class ClusterManagerUtils {
         } else {
           fsi = new FragmentServingInfo(new Fragment(td.getId(),
               currentPath, new TableMetaImpl(td.getMeta()),
-              bl.getOffset(), bl.getLength()));
+              bl.getOffset(), bl.getLength(), bl.getHosts()));
         }
         fsi.addPrimaryHost(info.getHost());
         for (String h : bl.getHosts()) {

@@ -403,7 +403,7 @@ public class Task implements Runnable {
 
     FileStatus[] fileLists = fs.listStatus(tablePath);
     for (FileStatus f : fileLists) {
-      tablet = new Fragment(name, f.getPath(), meta, 0l, f.getLen());
+      tablet = new Fragment(name, f.getPath(), meta, 0l, f.getLen(), null);
       listTablets.add(tablet);
     }
 

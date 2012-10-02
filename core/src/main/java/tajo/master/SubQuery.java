@@ -40,6 +40,7 @@ import tajo.catalog.statistics.TableStat;
 import tajo.engine.json.GsonCreator;
 import tajo.engine.planner.logical.*;
 import tajo.index.IndexUtil;
+import tajo.ipc.protocolrecords.Fragment;
 import tajo.master.event.*;
 import tajo.storage.StorageManager;
 
@@ -79,17 +80,20 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
   private final EventHandler eventHandler;
   private final StorageManager sm;
   private final GlobalPlanner planner;
+  private boolean isLeafQuery = false;
 
   volatile Map<QueryUnitId, QueryUnit> tasks = Maps.newLinkedHashMap();
 
-  private StateMachine<SubQueryState, SubQueryEventType, SubQueryEvent> stateMachine;
+  private StateMachine<SubQueryState, SubQueryEventType, SubQueryEvent>
+      stateMachine;
 
   private StateMachineFactory<SubQuery, SubQueryState,
       SubQueryEventType, SubQueryEvent> stateMachineFactory =
       new StateMachineFactory <SubQuery, SubQueryState,
           SubQueryEventType, SubQueryEvent> (SubQueryState.NEW)
 
-      .addTransition(SubQueryState.NEW,
+      .addTransition(
+          SubQueryState.NEW,
           EnumSet.of(SubQueryState.RUNNING, SubQueryState.FAILED, SubQueryState.SUCCEEDED),
           SubQueryEventType.SQ_INIT, new InitTransition())
 
@@ -124,6 +128,14 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
 
 
     stateMachine = stateMachineFactory.make(this);
+  }
+
+  public boolean isLeafQuery() {
+    return this.isLeafQuery;
+  }
+
+  public void setLeafQuery() {
+    this.isLeafQuery = true;
   }
 
   public void addTask(QueryUnit task) {
@@ -374,8 +386,13 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
           initOutputDir(subQuery.getStorageManager(), subQuery.getOutputName(),
               subQuery.getOutputType());
 
-          int numTasks = subQuery.getPlanner().getTaskNum(subQuery);
-          QueryUnit[] tasks = subQuery.getPlanner().localize(subQuery, numTasks);
+          QueryUnit [] tasks;
+          if (subQuery.isLeafQuery()) {
+            tasks = subQuery.getPlanner().createLeafTasks(subQuery);
+          } else {
+            int numTasks = subQuery.getPlanner().getTaskNum(subQuery);
+            tasks = subQuery.getPlanner().localize(subQuery, numTasks);
+          }
 
 
           for (QueryUnit task : tasks) {

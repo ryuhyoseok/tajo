@@ -146,7 +146,7 @@ public class StorageManager {
 	  FileSystem fs = filePath.getFileSystem(conf);
 	  FileStatus status = fs.getFileStatus(filePath);
 	  Fragment tablet = new Fragment(tableName+"_1", status.getPath(), 
-	      meta, 0l , status.getLen());
+	      meta, 0l , status.getLen(), null);
 	  
 	  return getScanner(meta, new Fragment[] {tablet});
 	}
@@ -160,7 +160,7 @@ public class StorageManager {
     FileSystem fs = LocalFileSystem.get(c);
     FileStatus status = fs.getFileStatus(filePath);
     Fragment tablet = new Fragment(tablePath.getName(), status.getPath(),
-        meta, 0l , status.getLen());
+        meta, 0l , status.getLen(), null);
 
     Scanner scanner = null;
 
@@ -412,7 +412,7 @@ public class StorageManager {
     FileStatus[] fileLists = fs.listStatus(new Path(tablePath, "data"));
     for (FileStatus file : fileLists) {
       tablet = new Fragment(tablePath.getName(), file.getPath(), meta, 0,
-          file.getLen());
+          file.getLen(), null);
       listTablets.add(tablet);
     }
 
@@ -447,16 +447,16 @@ public class StorageManager {
       if (remainFileSize > defaultBlockSize) {
         while (remainFileSize > defaultBlockSize) {
           tablet = new Fragment(tableName, file.getPath(), meta, start,
-              defaultBlockSize);
+              defaultBlockSize, null);
           listTablets.add(tablet);
           start += defaultBlockSize;
           remainFileSize -= defaultBlockSize;
         }
         listTablets.add(new Fragment(tableName, file.getPath(), meta, start,
-            remainFileSize));
+            remainFileSize, null));
       } else {
         listTablets.add(new Fragment(tableName, file.getPath(), meta, 0,
-            remainFileSize));
+            remainFileSize, null));
       }
     }
 
@@ -465,13 +465,6 @@ public class StorageManager {
 
     return tablets;
   }
-	
-	public Fragment getFragment(String fragmentId, TableMeta meta, Path path) 
-	    throws IOException {
-	  FileSystem fs = path.getFileSystem(conf);
-	  FileStatus status = fs.getFileStatus(path);	  
-	  return new Fragment(fragmentId, path, meta, 0, status.getLen());
-	}
 	
 	public FileStatus [] getTableDataFiles(Path tableRoot) throws IOException {
 	  FileSystem fs = tableRoot.getFileSystem(conf);
@@ -510,5 +503,219 @@ public class StorageManager {
     }
 
     return totalSize;
+  }
+
+  /////////////////////////////////////////////////////////////////////////////
+  // FileInputFormat Area
+  /////////////////////////////////////////////////////////////////////////////
+
+  private static final PathFilter hiddenFileFilter = new PathFilter() {
+    public boolean accept(Path p){
+      String name = p.getName();
+      return !name.startsWith("_") && !name.startsWith(".");
+    }
+  };
+
+  /**
+   * Proxy PathFilter that accepts a path only if all filters given in the
+   * constructor do. Used by the listPaths() to apply the built-in
+   * hiddenFileFilter together with a user provided one (if any).
+   */
+  private static class MultiPathFilter implements PathFilter {
+    private List<PathFilter> filters;
+
+    public MultiPathFilter(List<PathFilter> filters) {
+      this.filters = filters;
+    }
+
+    public boolean accept(Path path) {
+      for (PathFilter filter : filters) {
+        if (!filter.accept(path)) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+
+  /**
+   * List input directories.
+   * Subclasses may override to, e.g., select only files matching a regular
+   * expression.
+   *
+   * @return array of FileStatus objects
+   * @throws IOException if zero items.
+   */
+  protected List<FileStatus> listStatus(Path path) throws IOException {
+    List<FileStatus> result = new ArrayList<FileStatus>();
+    Path[] dirs = new Path[] {path};
+    if (dirs.length == 0) {
+      throw new IOException("No input paths specified in job");
+    }
+
+    List<IOException> errors = new ArrayList<IOException>();
+
+    // creates a MultiPathFilter with the hiddenFileFilter and the
+    // user provided one (if any).
+    List<PathFilter> filters = new ArrayList<PathFilter>();
+    filters.add(hiddenFileFilter);
+
+    PathFilter inputFilter = new MultiPathFilter(filters);
+
+    for (int i=0; i < dirs.length; ++i) {
+      Path p = dirs[i];
+
+      FileSystem fs = p.getFileSystem(conf);
+      FileStatus[] matches = fs.globStatus(p, inputFilter);
+      if (matches == null) {
+        errors.add(new IOException("Input path does not exist: " + p));
+      } else if (matches.length == 0) {
+        errors.add(new IOException("Input Pattern " + p + " matches 0 files"));
+      } else {
+        for (FileStatus globStat: matches) {
+          if (globStat.isDirectory()) {
+            for(FileStatus stat: fs.listStatus(globStat.getPath(),
+                inputFilter)) {
+              result.add(stat);
+            }
+          } else {
+            result.add(globStat);
+          }
+        }
+      }
+    }
+
+    if (!errors.isEmpty()) {
+      throw new InvalidInputException(errors);
+    }
+    LOG.info("Total input paths to process : " + result.size());
+    return result;
+  }
+
+  /**
+   * Get the lower bound on split size imposed by the format.
+   * @return the number of bytes of the minimal split for this format
+   */
+  protected long getFormatMinSplitSize() {
+    return 1;
+  }
+
+  /**
+   * Is the given filename splitable? Usually, true, but if the file is
+   * stream compressed, it will not be.
+   *
+   * <code>FileInputFormat</code> implementations can override this and return
+   * <code>false</code> to ensure that individual input files are never split-up
+   * so that Mappers process entire files.
+   *
+   * @param filename the file name to check
+   * @return is this file splitable?
+   */
+  protected boolean isSplitable(Path filename) {
+    return true;
+  }
+
+  protected long computeSplitSize(long blockSize, long minSize,
+                                  long maxSize) {
+    return Math.max(minSize, Math.min(maxSize, blockSize));
+  }
+
+  private static final double SPLIT_SLOP = 1.1;   // 10% slop
+
+  protected int getBlockIndex(BlockLocation[] blkLocations,
+                              long offset) {
+    for (int i = 0 ; i < blkLocations.length; i++) {
+      // is the offset inside this block?
+      if ((blkLocations[i].getOffset() <= offset) &&
+          (offset < blkLocations[i].getOffset() + blkLocations[i].getLength())){
+        return i;
+      }
+    }
+    BlockLocation last = blkLocations[blkLocations.length -1];
+    long fileLength = last.getOffset() + last.getLength() -1;
+    throw new IllegalArgumentException("Offset " + offset +
+        " is outside of file (0.." +
+        fileLength + ")");
+  }
+
+  /**
+   * A factory that makes the split for this class. It can be overridden
+   * by sub-classes to make sub-types
+   */
+  protected Fragment makeSplit(String fragmentId, TableMeta meta, Path file, long start, long length,
+                               String[] hosts) {
+    return new Fragment(fragmentId, file, meta, start, length, hosts);
+  }
+
+  /**
+   * Get the maximum split size.
+   * @return the maximum number of bytes a split can include
+   */
+  public static long getMaxSplitSize() {
+    // TODO - to be configurable
+    return 536870912L;
+  }
+
+  /**
+   * Get the minimum split size
+   * @return the minimum number of bytes that can be in a split
+   */
+  public static long getMinSplitSize() {
+    // TODO - to be configurable
+    return 67108864L;
+  }
+
+  /**
+   * Generate the list of files and make them into FileSplits.
+   * @throws IOException
+   */
+  public List<Fragment> getSplits(String tableName, TableMeta meta, Path inputPath) throws IOException {
+    long minSize = Math.max(getFormatMinSplitSize(), getMinSplitSize());
+    long maxSize = getMaxSplitSize();
+
+    // generate splits
+    List<Fragment> splits = new ArrayList<Fragment>();
+    List<FileStatus> files = listStatus(inputPath);
+    for (FileStatus file: files) {
+      Path path = file.getPath();
+      long length = file.getLen();
+      if (length != 0) {
+        FileSystem fs = path.getFileSystem(conf);
+        BlockLocation[] blkLocations = fs.getFileBlockLocations(file, 0, length);
+        if (isSplitable(path)) {
+          long blockSize = file.getBlockSize();
+          long splitSize = computeSplitSize(blockSize, minSize, maxSize);
+
+          long bytesRemaining = length;
+          while (((double) bytesRemaining)/splitSize > SPLIT_SLOP) {
+            int blkIndex = getBlockIndex(blkLocations, length-bytesRemaining);
+            splits.add(makeSplit(tableName, meta, path, length-bytesRemaining, splitSize,
+                blkLocations[blkIndex].getHosts()));
+            bytesRemaining -= splitSize;
+          }
+
+          if (bytesRemaining != 0) {
+            int blkIndex = getBlockIndex(blkLocations, length-bytesRemaining);
+            splits.add(makeSplit(tableName, meta, path, length-bytesRemaining, bytesRemaining,
+                blkLocations[blkIndex].getHosts()));
+          }
+        } else { // not splitable
+          splits.add(makeSplit(tableName, meta, path, 0, length, blkLocations[0].getHosts()));
+        }
+      } else {
+        //Create empty hosts array for zero length files
+        splits.add(makeSplit(tableName, meta, path, 0, length, new String[0]));
+      }
+    }
+    // Save the number of input files for metrics/loadgen
+    //job.getConfiguration().setLong(NUM_INPUT_FILES, files.size());
+    LOG.debug("Total # of splits: " + splits.size());
+    return splits;
+  }
+
+  private class InvalidInputException extends IOException {
+    public InvalidInputException(
+        List<IOException> errors) {
+    }
   }
 }

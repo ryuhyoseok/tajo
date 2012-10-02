@@ -38,7 +38,7 @@ public class TestFragment {
   @Test
   public final void testGetAndSetFields() {    
     Fragment fragment1 = new Fragment("table1_1", new Path("/table0"),
-        meta1, 0, 500);
+        meta1, 0, 500, null);
     fragment1.setDistCached();
 
     assertEquals("table1_1", fragment1.getId());
@@ -59,7 +59,7 @@ public class TestFragment {
 
   @Test
   public final void testTabletTabletProto() {
-    Fragment fragment0 = new Fragment("table1_1", new Path("/table0"), meta1, 0, 500);
+    Fragment fragment0 = new Fragment("table1_1", new Path("/table0"), meta1, 0, 500, null);
     
     Fragment fragment1 = new Fragment(fragment0.getProto());
     assertEquals("table1_1", fragment1.getId());
@@ -84,7 +84,7 @@ public class TestFragment {
     for (int i = num - 1; i >= 0; i--) {
       tablets[i]
           = new Fragment("tablet1_"+i, new Path("tablet0"), meta1, i * 500, 
-              (i+1) * 500);
+              (i+1) * 500, null);
     }
     
     Arrays.sort(tablets);
@@ -101,7 +101,7 @@ public class TestFragment {
     for (int i = num - 1; i >= 0; i--) {
       tablets[i]
           = new Fragment("tablet1_"+i, new Path("tablet0"), meta1, (long)i * 6553500,
-          (long)(i+1) * 6553500);
+          (long)(i+1) * 6553500, null);
     }
 
     SortedSet sortedSet = Sets.newTreeSet();
@@ -113,7 +113,7 @@ public class TestFragment {
   
 //  @Test
   public final void testJson() {
-	  Fragment frag1 = new Fragment("table1_1", new Path("/table0"), meta1, 0, 500);
+	  Fragment frag1 = new Fragment("table1_1", new Path("/table0"), meta1, 0, 500, null);
     frag1.setDistCached();
 	  String json = frag1.toString();
 	  System.out.println(json);

@@ -107,7 +107,7 @@ public class ResultSetImpl implements ResultSet {
         continue;
       }
       fraglist.add(new Fragment(tbname + "_" + i, files[i].getPath(), meta, 0l,
-          files[i].getLen()));
+          files[i].getLen(), null));
     }
     return fraglist.toArray(new Fragment[fraglist.size()]);
   }
