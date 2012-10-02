@@ -97,7 +97,7 @@ public class TestStorageManager {
     System.out.println("fileLen: " + fileLen + ", randomNum: " + randomNum);
     
     Fragment[] tablets = new Fragment[1];
-    tablets[0] = new Fragment("table2_1", status.getPath(), meta, 0, randomNum);
+    tablets[0] = new Fragment("table2_1", status.getPath(), meta, 0, randomNum, null);
     
     Scanner fileScanner = sm.getScanner(meta, tablets);
     int tupleCnt = 0;
@@ -106,7 +106,7 @@ public class TestStorageManager {
     }
     fileScanner.close();
     
-    tablets[0] = new Fragment("table2_2", status.getPath(), meta, randomNum, fileLen - randomNum);
+    tablets[0] = new Fragment("table2_2", status.getPath(), meta, randomNum, fileLen - randomNum, null);
 
     fileScanner = new CSVFile2.CSVScanner(conf, schema, tablets);
     while(fileScanner.next() != null) {

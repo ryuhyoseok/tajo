@@ -81,9 +81,9 @@ public class TestRCFileWrapper {
     
     Fragment[] tablets = new Fragment[2];
     tablets[0] = new Fragment("testReadAndWrite", status.getPath(), meta,
-        0, randomNum);
+        0, randomNum, null);
     tablets[1] = new Fragment("testReadAndWrite", status.getPath(), meta,
-        randomNum, (fileLen - randomNum));
+        randomNum, (fileLen - randomNum), null);
 
     Scanner scanner = new RCFileWrapper.RCFileScanner(conf, meta.getSchema(),
         tablets[0], schema);
@@ -144,7 +144,7 @@ public class TestRCFileWrapper {
 
     FileStatus status = sm.listTableFiles("rcfile")[0];
     Fragment fragment = new Fragment("rcfile", status.getPath(), meta,
-        0, status.getLen());
+        0, status.getLen(), null);
     Scanner scanner =  new RCFileWrapper.RCFileScanner(conf, meta.getSchema(),
         fragment, schema);
     Tuple retrieved = scanner.next();

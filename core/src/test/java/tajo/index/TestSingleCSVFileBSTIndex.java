@@ -14,12 +14,12 @@ import tajo.catalog.proto.CatalogProtos.StoreType;
 import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
 import tajo.datum.DatumFactory;
-import tajo.ipc.protocolrecords.Fragment;
 import tajo.engine.parser.QueryBlock.SortSpec;
 import tajo.engine.planner.physical.TupleComparator;
 import tajo.index.bst.BSTIndex;
 import tajo.index.bst.BSTIndex.BSTIndexReader;
 import tajo.index.bst.BSTIndex.BSTIndexWriter;
+import tajo.ipc.protocolrecords.Fragment;
 import tajo.storage.*;
 
 import java.io.IOException;
@@ -78,7 +78,7 @@ public class TestSingleCSVFileBSTIndex {
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
     Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0,
-        fileLen);
+        fileLen, null);
 
     SortSpec[] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("long"), true, false);
@@ -162,7 +162,7 @@ public class TestSingleCSVFileBSTIndex {
 
     FileStatus status = sm.listTableFiles("table1")[0];
     long fileLen = status.getLen();
-    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen);
+    Fragment tablet = new Fragment("table1_1", status.getPath(), meta, 0, fileLen, null);
     
     SortSpec [] sortKeys = new SortSpec[2];
     sortKeys[0] = new SortSpec(schema.getColumn("int"), true, false);

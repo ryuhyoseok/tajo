@@ -27,7 +27,8 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 import tajo.QueryId;
@@ -1024,10 +1025,10 @@ public class GlobalPlanner {
     }
     // TODO: The partition number should be set here,
     // because the number of query units is decided above.
-    
+
     QueryUnit[] units = new QueryUnit[unitList.size()];
     units = unitList.toArray(units);
-    subQuery.setQueryUnits(units);
+    subQuery.setQueryUnits(unitList);
     
     return units;
   }
@@ -1606,7 +1607,9 @@ public class GlobalPlanner {
     ScanNode scan = scans[0];
     path = catalog.getTableDesc(scan.getTableId()).getPath();
     meta = sm.getTableMeta(path);
-    List<Fragment> fragments = sm.getSplits(scan.getTableId(), meta, path);
+    // TODO - should be change the inner directory
+    List<Fragment> fragments = sm.getSplits(scan.getTableId(), meta,
+        new Path(path, "data"));
 
     QueryUnit queryUnit;
     List<QueryUnit> queryUnits = new ArrayList<>();

@@ -76,8 +76,8 @@ public class TestCSVFile2 {
     System.out.println("fileLen: " + fileLen + ", randomNum: " + randomNum);
     
     Fragment[] tablets = new Fragment[2];
-    tablets[0] = new Fragment("tablet1_1", new Path(path, "table1/data/file1"), meta, 0, randomNum);
-    tablets[1] = new Fragment("tablet1_1", new Path(path, "table1/data/file1"), meta, randomNum, (fileLen - randomNum));
+    tablets[0] = new Fragment("tablet1_1", new Path(path, "table1/data/file1"), meta, 0, randomNum, null);
+    tablets[1] = new Fragment("tablet1_1", new Path(path, "table1/data/file1"), meta, randomNum, (fileLen - randomNum), null);
     
     Scanner scanner = sm.getScanner(meta, tablets);
     int tupleCnt = 0;

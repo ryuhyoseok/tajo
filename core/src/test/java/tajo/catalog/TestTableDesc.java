@@ -7,8 +7,8 @@ import org.junit.Test;
 import tajo.catalog.proto.CatalogProtos.DataType;
 import tajo.catalog.proto.CatalogProtos.StoreType;
 import tajo.catalog.proto.CatalogProtos.TabletProto;
-import tajo.ipc.protocolrecords.Fragment;
 import tajo.engine.json.GsonCreator;
+import tajo.ipc.protocolrecords.Fragment;
 
 import static org.junit.Assert.assertEquals;
 
@@ -73,7 +73,7 @@ public class TestTableDesc {
   
   @Test
   public void testFragmentToJson() throws CloneNotSupportedException {
-	  TableDesc tmp = new Fragment("frag1", new Path("/"), info, 0, 10);
+	  TableDesc tmp = new Fragment("frag1", new Path("/"), info, 0, 10, null);
 	  testClone(tmp);
     System.out.println("1");
 	  Fragment frag = new Fragment((TabletProto)tmp.getProto());

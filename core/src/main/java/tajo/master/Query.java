@@ -73,6 +73,8 @@ public class Query implements EventHandler<QueryEvent> {
               QueryState.QUERY_FAILED),
           QueryEventType.SUBQUERY_COMPLETED,
           new SubQueryCompletedTransition())
+      .addTransition(QueryState.QUERY_RUNNING, QueryState.QUERY_ERROR,
+          QueryEventType.INTERNAL_ERROR, new InternalErrorTransition())
 
       .installTopology();
 
@@ -250,6 +252,19 @@ public class Query implements EventHandler<QueryEvent> {
     }
   }
 
+  private static class InternalErrorTransition
+      implements SingleArcTransition<Query, QueryEvent> {
+
+    @Override
+    public void transition(Query query, QueryEvent event) {
+      query.finished(QueryState.QUERY_ERROR);
+    }
+  }
+
+  public QueryState finished(QueryState finalState) {
+    return finalState;
+  }
+
   QueryState checkQueryForCompleted() {
     if (completedSubQueryCount == subqueries.size()) {
       return QueryState.QUERY_SUCCEEDED;
@@ -274,7 +289,7 @@ public class Query implements EventHandler<QueryEvent> {
 
       //notify the eventhandler of state change
       if (oldState != getState()) {
-        LOG.info(id + "Job Transitioned from " + oldState + " to "
+        LOG.info(id + " Query Transitioned from " + oldState + " to "
             + getState());
       }
     }

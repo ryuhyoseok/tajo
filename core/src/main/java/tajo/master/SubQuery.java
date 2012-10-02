@@ -40,7 +40,6 @@ import tajo.catalog.statistics.TableStat;
 import tajo.engine.json.GsonCreator;
 import tajo.engine.planner.logical.*;
 import tajo.index.IndexUtil;
-import tajo.ipc.protocolrecords.Fragment;
 import tajo.master.event.*;
 import tajo.storage.StorageManager;
 
@@ -72,7 +71,6 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
   private SubQuery next;
   private Map<ScanNode, SubQuery> prevs;
   private PARTITION_TYPE outputType;
-  private QueryUnit[] queryUnits;
   private boolean hasJoinPlan;
   private boolean hasUnionPlan;
   private Priority priority;
@@ -219,8 +217,10 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
     this.prevs.putAll(prevs);
   }
   
-  public void setQueryUnits(QueryUnit[] queryUnits) {
-    this.queryUnits = queryUnits;
+  public void setQueryUnits(List<QueryUnit> queryUnits) {
+    for (QueryUnit task: queryUnits) {
+      tasks.put(task.getId(), task);
+    }
   }
   
   public void removeChildQuery(ScanNode scan) {
@@ -307,16 +307,12 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
   }
   
   public QueryUnit[] getQueryUnits() {
-    return this.queryUnits;
+    // TODO - to be changed to unified getter
+    return tasks.values().toArray(new QueryUnit[tasks.size()]);
   }
   
   public QueryUnit getQueryUnit(QueryUnitId qid) {
-    for (QueryUnit unit : queryUnits) {
-      if (unit.getId().equals(qid)) {
-        return unit;
-      }
-    }
-    return null;
+    return tasks.get(qid);
   }
 
   public Priority getPriority() {

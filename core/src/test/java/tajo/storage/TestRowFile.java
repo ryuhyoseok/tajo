@@ -82,8 +82,8 @@ public class TestRowFile {
     long randomNum = (long) (Math.random() * fileLen) + 1;
     
     Fragment[] tablets = new Fragment[2];
-    tablets[0] = new Fragment("testRawFile", status.getPath(), meta, 0, randomNum);
-    tablets[1] = new Fragment("testRawFile", status.getPath(), meta, randomNum, (fileLen - randomNum));
+    tablets[0] = new Fragment("testRawFile", status.getPath(), meta, 0, randomNum, null);
+    tablets[1] = new Fragment("testRawFile", status.getPath(), meta, randomNum, (fileLen - randomNum), null);
 
     Scanner scanner = sm.getScanner(meta, tablets);
     int tupleCnt = 0;
@@ -127,9 +127,9 @@ public class TestRowFile {
     long randomNum = (long) (Math.random() * fileLen) + 1;
     
     Fragment[] tablets = new Fragment[3];
-    tablets[0] = new Fragment("testForSingleFile", status.getPath(), meta, 0, randomNum/2);
-    tablets[1] = new Fragment("testForSingleFile", status.getPath(), meta, randomNum/2, (randomNum - randomNum/2));
-    tablets[2] = new Fragment("testForSingleFile", status.getPath(), meta, randomNum, (fileLen - randomNum));
+    tablets[0] = new Fragment("testForSingleFile", status.getPath(), meta, 0, randomNum/2, null);
+    tablets[1] = new Fragment("testForSingleFile", status.getPath(), meta, randomNum/2, (randomNum - randomNum/2), null);
+    tablets[2] = new Fragment("testForSingleFile", status.getPath(), meta, randomNum, (fileLen - randomNum), null);
 
     Scanner scanner = sm.getScanner(meta, tablets);
     int tupleCnt = 0;
@@ -176,13 +176,13 @@ public class TestRowFile {
     long randomNum = (long) (Math.random() * fileLen) + 1;
 
     Fragment[] tablets = new Fragment[4];
-    tablets[0] = new Fragment("testForMultiFile", status[0].getPath(), meta, 0, randomNum);
-    tablets[1] = new Fragment("testForMultiFile", status[0].getPath(), meta, randomNum, (fileLen - randomNum));
+    tablets[0] = new Fragment("testForMultiFile", status[0].getPath(), meta, 0, randomNum, null);
+    tablets[1] = new Fragment("testForMultiFile", status[0].getPath(), meta, randomNum, (fileLen - randomNum), null);
     
     fileLen = status[1].getLen();
     randomNum = (long) (Math.random() * fileLen) + 1;
-    tablets[2] = new Fragment("testForMultiFile", status[1].getPath(), meta, 0, randomNum);
-    tablets[3] = new Fragment("testForMultiFile", status[1].getPath(), meta, randomNum, (fileLen - randomNum));
+    tablets[2] = new Fragment("testForMultiFile", status[1].getPath(), meta, 0, randomNum, null);
+    tablets[3] = new Fragment("testForMultiFile", status[1].getPath(), meta, randomNum, (fileLen - randomNum), null);
     
     Scanner scanner = sm.getScanner(meta, tablets);
     int tupleCnt = 0;

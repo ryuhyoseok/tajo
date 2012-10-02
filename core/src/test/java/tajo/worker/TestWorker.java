@@ -230,7 +230,7 @@ public class TestWorker {
     QueryUnit [] qu = new QueryUnit[2];
     qu[0] = new QueryUnit(qid1, master.getEventHandler());
     qu[1] = new QueryUnit(qid2, master.getEventHandler());
-    su.setQueryUnits(qu);
+    su.setQueryUnits(Lists.newArrayList(qu));
     //qu[0].setState(QueryStatus.QUERY_INITED);
     //qu[1].setState(QueryStatus.QUERY_INITED);
     QueryUnitAttempt attempt0 = qu[0].newAttempt();
@@ -378,7 +378,7 @@ public class TestWorker {
     plan = LogicalOptimizer.optimize(context, plan);
     sm.initTableBase(TCatUtil.newTableMeta(plan.getOutSchema(), StoreType.CSV),
         "final");
-    Fragment emptyFrag = new Fragment("interquery", new Path("/"), newMeta, 0l, 0l);
+    Fragment emptyFrag = new Fragment("interquery", new Path("/"), newMeta, 0l, 0l, null);
     QueryUnitRequest req3 = new QueryUnitRequestImpl(
         TUtil.newQueryUnitAttemptId(), Lists.newArrayList(emptyFrag),
         "", false, plan.toJSON());

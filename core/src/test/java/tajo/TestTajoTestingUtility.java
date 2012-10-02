@@ -34,13 +34,13 @@ import tajo.engine.parser.QueryAnalyzer;
 import tajo.engine.planner.LogicalOptimizer;
 import tajo.engine.planner.LogicalPlanner;
 import tajo.engine.planner.PlanningContext;
-import tajo.master.QueryUnit;
-import tajo.master.QueryUnitAttempt;
 import tajo.engine.planner.logical.LogicalNode;
 import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.master.Query;
+import tajo.master.QueryUnit;
+import tajo.master.QueryUnitAttempt;
 import tajo.master.SubQuery;
 import tajo.storage.Appender;
 import tajo.storage.StorageManager;
@@ -151,7 +151,7 @@ public class TestTajoTestingUtility {
           "", false, plan.toJSON());
       queryUnitRequests.add(req);
     }
-    subQuery.setQueryUnits(queryUnits.toArray(new QueryUnit[queryUnits.size()]));
+    subQuery.setQueryUnits(queryUnits);
 
     for (int i = 0; i < 4; i++) {
       util.getMiniTajoCluster().getWorkerThreads().get(i)

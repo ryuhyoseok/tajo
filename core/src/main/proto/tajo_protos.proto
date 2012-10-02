@@ -58,7 +58,7 @@ enum QueryState {
   QUERY_SUCCEEDED = 3;
   QUERY_FAILED = 4;
   QUERY_KILLED = 5;
-  QUERY_INTERNAL_ERROR = 6;
+  QUERY_ERROR = 6;
 }
 
 enum TaskAttemptState {
