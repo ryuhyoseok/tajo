@@ -36,6 +36,8 @@ import tajo.engine.exception.EmptyClusterException;
 import tajo.engine.exception.IllegalQueryStatusException;
 import tajo.engine.exception.NoSuchQueryIdException;
 import tajo.engine.exception.UnknownWorkerException;
+import tajo.engine.parser.CreateTableStmt;
+import tajo.engine.parser.ParseTree;
 import tajo.engine.parser.QueryAnalyzer;
 import tajo.engine.planner.LogicalOptimizer;
 import tajo.engine.planner.LogicalPlanner;
@@ -183,7 +185,14 @@ public class GlobalEngine {
   private void updateFragmentServingInfo(PlanningContext planningContext)
       throws IOException {
     context.getClusterManager().updateOnlineWorker();
-    for (String table : planningContext.getParseTree().getAllTableNames()) {
+
+    ParseTree parseTree = planningContext.getParseTree();
+    if (planningContext.getParseTree() instanceof CreateTableStmt) {
+      parseTree = ((CreateTableStmt) planningContext.getParseTree()).
+          getSelectStmt();
+    }
+
+    for (String table : parseTree.getAllTableNames()) {
       context.getClusterManager().updateFragmentServingInfo2(table);
     }
   }

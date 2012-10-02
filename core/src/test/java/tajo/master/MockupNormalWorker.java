@@ -59,11 +59,7 @@ public class MockupNormalWorker extends MockupWorker {
           before = time;
         }
       }
-    } catch (IOException e) {
-      e.printStackTrace();
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-    } catch (KeeperException e) {
+    } catch (Exception e) {
       e.printStackTrace();
     } finally {
       clear();

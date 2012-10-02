@@ -66,13 +66,9 @@ public class MockupShutdownWorker extends MockupWorker {
           before = time;
         }
       }
-    } catch (IOException e) {
+    } catch (Exception e) {
       e.printStackTrace();
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-    } catch (KeeperException e) {
-      e.printStackTrace();
-    }finally {
+    } finally {
       clear();
     }
   }

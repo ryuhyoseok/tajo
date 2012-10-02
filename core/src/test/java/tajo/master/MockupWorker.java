@@ -36,10 +36,10 @@ import tajo.engine.MasterWorkerProtos.*;
 import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.ipc.AsyncWorkerProtocol;
 import tajo.ipc.MasterWorkerProtocol;
+import tajo.ipc.MasterWorkerProtocol.MasterWorkerProtocolService;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.master.cluster.MasterAddressTracker;
-import tajo.rpc.NettyRpc;
-import tajo.rpc.NettyRpcServer;
+import tajo.rpc.*;
 import tajo.rpc.protocolrecords.PrimitiveProtos;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
 import tajo.zookeeper.ZkClient;
@@ -63,13 +63,14 @@ public abstract class MockupWorker
   protected final static Log LOG = LogFactory.getLog(MockupWorker.class);
 
   protected final TajoConf conf;
-  protected NettyRpcServer rpcServer;
+  protected ProtoAsyncRpcServer rpcServer;
   protected InetSocketAddress isa;
   protected String serverName;
 
   protected ZkClient zkClient;
   protected MasterAddressTracker masterAddrTracker;
-  protected MasterWorkerProtocol master;
+  protected ProtoAsyncRpcClient client;
+  protected MasterWorkerProtocolService.Interface master;
 
   protected final Type type;
 
@@ -85,7 +86,7 @@ public abstract class MockupWorker
     stopped = false;
   }
 
-  protected void prepareServing() throws IOException {
+  protected void prepareServing() throws Exception {
     String hostname = DNS.getDefaultHost(
         conf.get("nta.master.dns.interface", "default"),
         conf.get("nta.master.dns.nameserver", "default"));
@@ -96,7 +97,8 @@ public abstract class MockupWorker
     if (initialIsa.getAddress() == null) {
       throw new IllegalArgumentException("Failed resolve of " + this.isa);
     }
-    this.rpcServer = NettyRpc.getProtoParamRpcServer(this, AsyncWorkerProtocol.class, initialIsa);
+    this.rpcServer = new ProtoAsyncRpcServer(AsyncWorkerProtocol.class,
+        this, initialIsa);
     this.rpcServer.start();
 
     this.isa = this.rpcServer.getBindAddress();
@@ -105,7 +107,7 @@ public abstract class MockupWorker
     this.zkClient = new ZkClient(this.conf);
   }
 
-  protected void participateCluster() throws InterruptedException, KeeperException {
+  protected void participateCluster() throws Exception, KeeperException {
     this.masterAddrTracker = new MasterAddressTracker(zkClient);
     this.masterAddrTracker.start();
 
@@ -123,11 +125,11 @@ public abstract class MockupWorker
         + serverName);
 
     InetSocketAddress addr = NetUtils.createSocketAddr(new String(master));
-    this.master = (MasterWorkerProtocol) NettyRpc.getProtoParamBlockingRpcProxy(
-        MasterWorkerProtocol.class, addr);
+    this.client = new ProtoAsyncRpcClient(MasterWorkerProtocol.class, addr);
+    this.master = client.getStub();
   }
 
-  public MasterWorkerProtocol getMaster() {
+  public MasterWorkerProtocolService.Interface getMaster() {
     return this.master;
   }
 
@@ -268,7 +270,7 @@ public abstract class MockupWorker
     }
   }
 
-  protected boolean sendHeartbeat(long time) throws IOException {
+  protected void sendHeartbeat(long time) throws IOException {
     StatusReportProto.Builder ping = StatusReportProto.newBuilder();
     ping.setTimestamp(time);
     ping.setServerName(serverName);
@@ -295,7 +297,7 @@ public abstract class MockupWorker
 
     ping.addAllStatus(list);
     StatusReportProto proto = ping.build();
-    return master.statusUpdate(proto).getValue();
+    master.statusUpdate(null, proto, NullCallback.get());
   }
 
   protected void clear() {

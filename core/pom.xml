@@ -97,6 +97,7 @@
                 <argument>src/main/proto/yarn_protos.proto</argument>
                 <argument>src/main/proto/tajo_protos.proto</argument>
                 <argument>src/main/proto/MasterWorkerProtos.proto</argument>
+                <argument>src/main/proto/MasterWorkerProtocol.proto</argument>
                 <argument>src/main/proto/ClientServiceProtos.proto</argument>
                 <argument>src/main/proto/CatalogProtos.proto</argument>
               </arguments>

@@ -39,10 +39,13 @@ import tajo.engine.MasterWorkerProtos.*;
 import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.ipc.AsyncWorkerProtocol;
 import tajo.ipc.MasterWorkerProtocol;
+import tajo.ipc.MasterWorkerProtocol.MasterWorkerProtocolService;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.master.cluster.MasterAddressTracker;
 import tajo.rpc.NettyRpc;
 import tajo.rpc.NettyRpcServer;
+import tajo.rpc.NullCallback;
+import tajo.rpc.ProtoAsyncRpcClient;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
 import tajo.rpc.protocolrecords.PrimitiveProtos.NullProto;
 import tajo.storage.StorageUtil;
@@ -78,7 +81,8 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
   // Cluster Management
   private ZkClient zkClient;
   private MasterAddressTracker masterAddrTracker;
-  private MasterWorkerProtocol master;
+  private ProtoAsyncRpcClient client;
+  private MasterWorkerProtocolService.Interface master;
 
   // Query Processing
   private FileSystem localFS;
@@ -159,7 +163,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
     Runtime.getRuntime().addShutdownHook(new Thread(new ShutdownHook()));
   }
 
-  private void participateCluster() throws IOException, InterruptedException,
+  private void participateCluster() throws Exception, InterruptedException,
       KeeperException {
     this.masterAddrTracker = new MasterAddressTracker(zkClient);
     this.masterAddrTracker.start();
@@ -178,8 +182,8 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
         + serverName);
     
     InetSocketAddress addr = NetUtils.createSocketAddr(new String(master));
-    this.master = (MasterWorkerProtocol) NettyRpc.getProtoParamBlockingRpcProxy(
-        MasterWorkerProtocol.class, addr);
+    this.client = new ProtoAsyncRpcClient(MasterWorkerProtocol.class, addr);
+    this.master = client.getStub();
   }
 
   class WorkerContext {
@@ -191,7 +195,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
       return retriever;
     }
 
-    public MasterWorkerProtocol getMaster() {
+    public MasterWorkerProtocolService.Interface getMaster() {
       return master;
     }
 
@@ -251,8 +255,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
           sleeper.sleep(3000);
           long time = System.currentTimeMillis();
 
-          boolean res = sendHeartbeat(time);
-          //LOG.info("sent heart beat!! (" + res + ")");
+          sendHeartbeat(time);
         }
       }
     } catch (Throwable t) {
@@ -274,7 +277,8 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
       }
 
       rpcServer.shutdown();
-      queryLauncher.shutdown();      
+      queryLauncher.shutdown();
+      client.close();
       masterAddrTracker.stop();
       zkClient.close();
     }
@@ -282,7 +286,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
     LOG.info("Worker (" + serverName + ") main thread exiting");
   }
   
-  private boolean sendHeartbeat(long time) throws IOException {
+  private void sendHeartbeat(long time) throws IOException {
     StatusReportProto.Builder report = StatusReportProto.newBuilder();
     report.setTimestamp(time);
     report.setServerName(serverName);
@@ -316,7 +320,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
       }
     }
 
-    return master.statusUpdate(report.build()).getValue();
+    master.statusUpdate(null, report.build(), new NullCallback());
   }
 
   private class ShutdownHook implements Runnable {

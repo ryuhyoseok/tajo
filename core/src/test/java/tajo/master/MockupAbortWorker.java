@@ -64,12 +64,7 @@ public class MockupAbortWorker extends MockupWorker {
           before = time;
         }
       }
-    } catch (IOException e) {
-      e.printStackTrace();
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-    } catch (KeeperException e) {
-      e.printStackTrace();
+    } catch (Exception e) {
     } finally {
       clear();
     }
