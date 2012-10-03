@@ -121,11 +121,11 @@ public class WorkerCommunicator extends AbstractService
   public Callback<BoolProto> requestQueryUnit(String serverName,
                                               QueryUnitRequestProto requestProto) throws Exception {
     Callback<BoolProto> cb = new Callback<BoolProto>();
-    AsyncWorkerCBProtocol leaf = proxies.get(serverName);
-    if (leaf == null) {
-      throw new UnknownWorkerException(serverName);
-    }
-    leaf.requestQueryUnit(cb, requestProto);
+//    AsyncWorkerCBProtocol leaf = proxies.get(serverName);
+//    if (leaf == null) {
+//      throw new UnknownWorkerException(serverName);
+//    }
+//    leaf.requestQueryUnit(cb, requestProto);
     return cb;
   }
 

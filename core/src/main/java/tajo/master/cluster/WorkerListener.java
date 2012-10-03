@@ -92,7 +92,6 @@ public class WorkerListener extends Thread
   
   public void shutdown() {
     this.stopped = true;
-    this.rpcServer.shutdown();
   }
 
   static BoolProto TRUE_PROTO = BoolProto.newBuilder().setValue(true).build();
@@ -117,7 +116,7 @@ public class WorkerListener extends Thread
   @Override
   public void getTask(RpcController controller, WorkerId request,
                       RpcCallback<QueryUnitRequestProto> done) {
-
+    LOG.info("Get TaskRequest");
   }
 
   @Override

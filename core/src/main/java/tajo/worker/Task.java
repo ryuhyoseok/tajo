@@ -71,6 +71,7 @@ public class Task implements Runnable {
   private final FileSystem localFS;
   private final WorkerContext workerContext;
   private final LocalDirAllocator lDirAllocator;
+  private final QueryUnitAttemptId taskId;
 
   private final TaskAttemptContext context;
   private List<Fetcher> fetcherRunners;
@@ -101,6 +102,8 @@ public class Task implements Runnable {
     this.workerContext = worker;
     this.localFS = worker.getLocalFS();
     this.lDirAllocator = worker.getLocalDirAllocator();
+
+    this.taskId = request.getId();
 
     Path taskAttemptPath = localFS.makeQualified(lDirAllocator.
         getLocalPathForWrite(request.getId().toString(), conf));
@@ -148,6 +151,10 @@ public class Task implements Runnable {
   }
 
   public void init() throws InternalException {
+  }
+
+  public QueryUnitAttemptId getTaskId() {
+    return taskId;
   }
 
   // getters and setters for flag

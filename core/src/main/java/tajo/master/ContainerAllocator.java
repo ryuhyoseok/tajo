@@ -26,6 +26,7 @@ import tajo.master.event.ContainerAllocatorEvent;
 import tajo.master.event.ContainerAllocatorEventType;
 
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -41,11 +42,15 @@ public class ContainerAllocator extends AbstractService
   BlockingQueue<ContainerAllocatorEvent> eventQueue
       = new LinkedBlockingQueue<>();
 
-  public ContainerAllocator(String name) {
+  private ScheduledRequests scheduledRequests;
+
+  public ContainerAllocator() {
     super(ContainerAllocator.class.getName());
   }
 
   public void init(Configuration conf) {
+
+    scheduledRequests = new ScheduledRequests();
 
     super.init(conf);
   }
@@ -58,11 +63,10 @@ public class ContainerAllocator extends AbstractService
         while(!stopEventHandling && Thread.currentThread().isInterrupted()) {
           try {
           event = eventQueue.take();
+            handleEvent(event);
           } catch (InterruptedException e) {
             LOG.error("Returning, iterrupted : " + e);
           }
-
-
         }
       }
     };
@@ -79,7 +83,9 @@ public class ContainerAllocator extends AbstractService
 
   private void handleEvent(ContainerAllocatorEvent event) {
     if (event.getType() == ContainerAllocatorEventType.CONTAINER_REQ) {
-
+      if (event.isLeafQuery()) {
+        scheduledRequests.addLeafTask(event);
+      }
     }
   }
 
@@ -103,11 +109,34 @@ public class ContainerAllocator extends AbstractService
   }
 
   private class ScheduledRequests {
-    private final Map<String, List<QueryUnitAttemptId>> mapsHostMapping =
+    private final Map<String, LinkedList<QueryUnitAttemptId>> leafTasksHostMapping =
         new HashMap<>();
-    private final Map<String, List<QueryUnitAttemptId>> mapsRackMapping =
+    private final Map<String, LinkedList<QueryUnitAttemptId>> leafTasksRackMapping =
         new HashMap<>();
 
-
+    public void addLeafTask(ContainerAllocatorEvent event) {
+      for (String host : event.getHosts()) {
+        LinkedList<QueryUnitAttemptId> list = leafTasksHostMapping.get(host);
+        if (list == null) {
+          list = new LinkedList<>();
+          leafTasksHostMapping.put(host, list);
+        }
+        list.add(event.getAttemptId());
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Added attempt req to host " + host);
+        }
+      }
+      for (String rack: event.getRacks()) {
+        LinkedList<QueryUnitAttemptId> list = leafTasksRackMapping.get(rack);
+        if (list == null) {
+          list = new LinkedList<>();
+          leafTasksRackMapping.put(rack, list);
+        }
+        list.add(event.getAttemptId());
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Added attempt req to rack " + rack);
+        }
+      }
+    }
   }
 }

@@ -21,14 +21,36 @@ import tajo.QueryUnitAttemptId;
 
 public class ContainerAllocatorEvent
     extends AbstractEvent<ContainerAllocatorEventType> {
-  private QueryUnitAttemptId attemptId;
+  private final QueryUnitAttemptId attemptId;
+  private final boolean isLeafQuery;
+  private final String[] hosts;
+  private final String[] racks;
 
-  public ContainerAllocatorEvent(QueryUnitAttemptId attemptId,
-      ContainerAllocatorEventType eventType) {
+  public ContainerAllocatorEvent(final QueryUnitAttemptId attemptId,
+                                 boolean isLeafQuery,
+                                 final String [] hosts,
+                                 final String [] racks,
+                                 final ContainerAllocatorEventType eventType) {
     super(eventType);
+    this.attemptId = attemptId;
+    this.isLeafQuery = isLeafQuery;
+    this.hosts = hosts;
+    this.racks = racks;
   }
 
   public QueryUnitAttemptId getAttemptId() {
     return this.attemptId;
+  }
+
+  public boolean isLeafQuery() {
+    return this.isLeafQuery;
+  }
+
+  public String [] getHosts() {
+    return this.hosts;
+  }
+
+  public String [] getRacks() {
+    return this.racks;
   }
 }

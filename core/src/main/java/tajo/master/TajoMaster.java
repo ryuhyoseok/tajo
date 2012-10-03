@@ -73,12 +73,11 @@ import java.util.List;
 import java.util.Map;
 
 public class TajoMaster extends CompositeService implements ClientService {
-  /**
-   * Priority of the JobHistoryServer shutdown hook.
-   */
-  public static final int SHUTDOWN_HOOK_PRIORITY = 30;
 
+  /** Class Logger */
   private static final Log LOG = LogFactory.getLog(TajoMaster.class);
+
+  public static final int SHUTDOWN_HOOK_PRIORITY = 30;
 
   private MasterContext context;
   private TajoConf conf;
@@ -102,12 +101,8 @@ public class TajoMaster extends CompositeService implements ClientService {
   private DefaultScheduler scheduler;
 
   private InetSocketAddress clientServiceBindAddr;
-  //private RPC.Server clientServiceServer;
   private NettyRpcServer server;
-
   private WorkerTracker tracker;
-
-  volatile Map<QueryId, Query> tasks = Maps.newLinkedHashMap();
 
   //Web Server
   private StaticHttpServer webServer;
@@ -349,10 +344,6 @@ public class TajoMaster extends CompositeService implements ClientService {
     return this.clientServiceAddr;
   }
 
-  public InetSocketAddress getRpcServerAddr() {
-    return this.clientServiceBindAddr;
-  }
-
   public boolean isMasterRunning() {
     return getServiceState() == STATE.STARTED;
   }
@@ -368,10 +359,6 @@ public class TajoMaster extends CompositeService implements ClientService {
 
   public WorkerCommunicator getWorkerCommunicator() {
     return communicator;
-  }
-
-  public GlobalEngine getGlobalEngine() {
-    return this.queryEngine;
   }
 
   public ClusterManager getClusterManager() {
