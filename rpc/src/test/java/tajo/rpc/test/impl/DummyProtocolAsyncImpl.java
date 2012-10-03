@@ -65,4 +65,16 @@ public class DummyProtocolAsyncImpl implements Interface {
     LOG.info("noCallback is called");
     done.run(null);
   }
+
+  @Override
+  public void deley(RpcController controller, EchoMessage request,
+                    RpcCallback<EchoMessage> done) {
+    try {
+      Thread.sleep(3000);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+
+    done.run(request);
+  }
 }

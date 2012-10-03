@@ -33,6 +33,7 @@ import tajo.rpc.test.impl.DummyProtocolAsyncImpl;
 import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.*;
 
@@ -133,5 +134,28 @@ public class TestProtoAsyncRpc {
     assertTrue(service.getErrorCalled);
     assertTrue(controller.failed());
     assertEquals(echoMessage2.getMessage(), controller.errorText());
+  }
+
+  @Test
+  public void testCallFuture() throws Exception {
+    EchoMessage echoMessage = EchoMessage.newBuilder()
+        .setMessage(MESSAGE).build();
+    CallFuture2<EchoMessage> future = new CallFuture2<>();
+    stub.deley(null, echoMessage, future);
+
+    assertFalse(future.isDone());
+    assertEquals(future.get(), echoMessage);
+    assertTrue(future.isDone());
+  }
+
+  @Test(expected = TimeoutException.class)
+  public void testCallFutureTimeout() throws Exception {
+    EchoMessage echoMessage = EchoMessage.newBuilder()
+        .setMessage(MESSAGE).build();
+    CallFuture2<EchoMessage> future = new CallFuture2<>();
+    stub.deley(null, echoMessage, future);
+
+    assertFalse(future.isDone());
+    assertEquals(future.get(1, TimeUnit.SECONDS), echoMessage);
   }
 }

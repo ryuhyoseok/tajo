@@ -17,45 +17,53 @@
 package tajo.rpc;
 
 import com.google.protobuf.RpcCallback;
-import com.google.protobuf.RpcController;
 
-public class NettyRpcController implements RpcController {
-  private String errorText;
+import java.util.concurrent.*;
+
+public class CallFuture2<T> implements RpcCallback<T>, Future<T> {
+
+  private final Semaphore sem = new Semaphore(0);
+  private boolean done = false;
+  private T response;
 
   @Override
-  public void reset() {
-    errorText = null;
+  public void run(T t) {
+    this.response = t;
+    done = true;
+    sem.release();
   }
 
   @Override
-  public boolean failed() {
-    return errorText != null;
-  }
-
-  @Override
-  public String errorText() {
-    return errorText;
-  }
-
-  @Override
-  public void startCancel() {
+  public boolean cancel(boolean mayInterruptIfRunning) {
     // TODO - to be implemented
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void setFailed(String s) {
-    errorText = s;
-  }
-
-  @Override
-  public boolean isCanceled() {
+  public boolean isCancelled() {
     // TODO - to be implemented
-    return false;
+    throw new UnsupportedOperationException();
   }
 
   @Override
-  public void notifyOnCancel(RpcCallback<Object> objectRpcCallback) {
-    throw new UnsupportedOperationException();
+  public boolean isDone() {
+    return done;
+  }
+
+  @Override
+  public T get() throws InterruptedException, ExecutionException {
+    sem.acquire();
+
+    return response;
+  }
+
+  @Override
+  public T get(long timeout, TimeUnit unit)
+      throws InterruptedException, ExecutionException, TimeoutException {
+    if (sem.tryAcquire(timeout, unit)) {
+      return response;
+    } else {
+      throw new TimeoutException();
+    }
   }
 }

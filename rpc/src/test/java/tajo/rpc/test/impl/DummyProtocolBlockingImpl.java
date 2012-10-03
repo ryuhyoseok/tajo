@@ -61,4 +61,16 @@ public class DummyProtocolBlockingImpl implements BlockingInterface {
     LOG.info("noCallback is called");
     return null;
   }
+
+  @Override
+  public EchoMessage deley(RpcController controller, EchoMessage request)
+      throws ServiceException {
+    try {
+      Thread.sleep(3000);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+
+    return request;
+  }
 }
