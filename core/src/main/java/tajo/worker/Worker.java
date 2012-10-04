@@ -19,9 +19,7 @@
 package tajo.worker;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.protobuf.RpcCallback;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
@@ -29,13 +27,10 @@ import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.net.DNS;
 import org.apache.hadoop.net.NetUtils;
-import org.apache.hadoop.util.ReflectionUtils;
-import org.apache.hadoop.util.StringUtils;
 import org.apache.zookeeper.KeeperException;
 import tajo.NConstants;
 import tajo.QueryUnitAttemptId;
 import tajo.TajoProtos.TaskAttemptState;
-import tajo.common.Sleeper;
 import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.MasterWorkerProtos.*;
@@ -43,11 +38,13 @@ import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.ipc.AsyncWorkerProtocol;
 import tajo.ipc.MasterWorkerProtocol;
 import tajo.ipc.MasterWorkerProtocol.MasterWorkerProtocolService;
-import tajo.ipc.MasterWorkerProtocol.MasterWorkerProtocolService.Interface;
 import tajo.ipc.MasterWorkerProtocol.WorkerId;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.master.cluster.MasterAddressTracker;
-import tajo.rpc.*;
+import tajo.rpc.CallFuture2;
+import tajo.rpc.NettyRpc;
+import tajo.rpc.NettyRpcServer;
+import tajo.rpc.ProtoAsyncRpcClient;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
 import tajo.rpc.protocolrecords.PrimitiveProtos.NullProto;
 import tajo.storage.StorageUtil;
@@ -61,11 +58,8 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class Worker extends Thread implements AsyncWorkerProtocol {
   private static final Log LOG = LogFactory.getLog(Worker.class);
@@ -109,8 +103,6 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
   private HttpServer webServer;
 
   private WorkerContext workerContext;
-
-  private Reporter reporter;
 
   public Worker(final TajoConf conf) {
     this.conf = conf;
@@ -198,9 +190,6 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
     InetSocketAddress addr = NetUtils.createSocketAddr(masterAddr);
     this.client = new ProtoAsyncRpcClient(MasterWorkerProtocol.class, addr);
     this.master = client.getStub();
-
-    this.reporter = new Reporter(this.master);
-    this.reporter.startCommunicationThread();
   }
 
   class WorkerContext {
@@ -269,7 +258,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
         @Override
         public void run() {
 
-          CallFuture2<QueryUnitRequestProto> future = null;
+          CallFuture2<QueryUnitRequestProto> future;
           QueryUnitRequestProto taskRequest;
 
           while(!stopped) {
@@ -315,55 +304,12 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
       rpcServer.shutdown();
       queryLauncher.shutdown();
 
-      try {
-        reporter.stopCommunicationThread();
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
-
       client.close();
       masterAddrTracker.stop();
       zkClient.close();
     }
 
     LOG.info("Worker (" + serverName + ") main thread exiting");
-  }
-  
-  private void sendHeartbeat(long time) throws IOException {
-    StatusReportProto.Builder report = StatusReportProto.newBuilder();
-    report.setTimestamp(time);
-    report.setServerName(serverName);
-    
-    // to send
-    List<TaskStatusProto> list
-      = new ArrayList<>();
-    TaskStatusProto taskStatus;
-    // to be removed
-    List<QueryUnitAttemptId> tobeRemoved = Lists.newArrayList();
-    
-    // builds one status for each in-progress query
-    TaskAttemptState taskState;
-
-    for (Task task : tasks.values()) {
-      if (task.getProgressFlag()) {
-        taskState = task.getStatus();
-        if (taskState == TaskAttemptState.TA_FAILED
-            || taskState == TaskAttemptState.TA_KILLED
-            || taskState == TaskAttemptState.TA_SUCCEEDED) {
-          // TODO - in-progress queries should be kept until this leafserver
-          // ensures that this report is delivered.
-          tobeRemoved.add(task.getId());
-        }
-
-        taskStatus = task.getReport();
-        task.resetProgressFlag();
-        report.addStatus(taskStatus);
-      } else {
-        report.addPings(task.getId().getProto());
-      }
-    }
-
-    master.statusUpdate(null, report.build(), new NullCallback());
   }
 
   private class ShutdownHook implements Runnable {
@@ -434,7 +380,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
   public BoolProto requestQueryUnit(QueryUnitRequestProto proto)
       throws Exception {
     QueryUnitRequest request = new QueryUnitRequestImpl(proto);
-    Task task = new Task(workerContext, request);
+    Task task = new Task(workerContext, master, request);
     synchronized(tasks) {
       if (tasks.containsKey(task.getId())) {
         throw new IllegalStateException("Query unit (" + task.getId() + ") is already is submitted");
@@ -565,97 +511,6 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
       }
     }
     return null;
-  }
-
-  protected class Reporter implements Runnable {
-    private MasterWorkerProtocolService.Interface masterStub;
-    private Thread pingThread;
-    private Object lock = new Object();
-    private static final int PROGRESS_INTERVAL = 3000;
-    private StatusReportProto.Builder reportBuilder = StatusReportProto.newBuilder();
-
-    public Reporter(Interface masterStub) {
-      this.masterStub = masterStub;
-    }
-
-    @Override
-    public void run() {
-      final int MAX_RETRIES = 3;
-      int remainingRetries = MAX_RETRIES;
-
-      while (!stopped) {
-        try {
-          synchronized(lock) {
-            lock.wait(PROGRESS_INTERVAL);
-          }
-
-          reportBuilder.setTimestamp(System.currentTimeMillis());
-          reportBuilder.setServerName(serverName);
-
-          // to send
-          TaskStatusProto taskStatus;
-          // to be removed
-          List<QueryUnitAttemptId> tobeRemoved = Lists.newArrayList();
-
-          // builds one status for each in-progress query
-          TaskAttemptState taskState;
-
-          for (Task task : tasks.values()) {
-            if (task.getProgressFlag()) {
-              taskState = task.getStatus();
-              if (taskState == TaskAttemptState.TA_FAILED
-                  || taskState == TaskAttemptState.TA_KILLED
-                  || taskState == TaskAttemptState.TA_SUCCEEDED) {
-                // TODO - in-progress queries should be kept until this leafserver
-                // ensures that this report is delivered.
-                tobeRemoved.add(task.getId());
-              }
-
-              taskStatus = task.getReport();
-              task.resetProgressFlag();
-              reportBuilder.addStatus(taskStatus);
-            } else {
-              reportBuilder.addPings(task.getId().getProto());
-            }
-          }
-
-          masterStub.statusUpdate(null, reportBuilder.build(), NullCallback.get());
-          reportBuilder.clear();
-
-        } catch (Throwable t) {
-
-          LOG.info("Communication exception: " + StringUtils.stringifyException(t));
-          remainingRetries -=1;
-          if (remainingRetries == 0) {
-            ReflectionUtils.logThreadInfo(LOG, "Communication exception", 0);
-            LOG.warn("Last retry, killing ");
-            System.exit(65);
-          }
-        }
-      }
-    }
-
-    public void startCommunicationThread() {
-      if (pingThread == null) {
-        pingThread = new Thread(this, "communication thread");
-        pingThread.setDaemon(true);
-        pingThread.start();
-      }
-    }
-
-    public void stopCommunicationThread() throws InterruptedException {
-      if (pingThread != null) {
-        // Intent of the lock is to not send an interupt in the middle of an
-        // umbilical.ping or umbilical.statusUpdate
-        synchronized(lock) {
-          //Interrupt if sleeping. Otherwise wait for the RPC call to return.
-          lock.notify();
-        }
-
-        pingThread.interrupt();
-        pingThread.join();
-      }
-    }
   }
 
   public static void main(String[] args) throws IOException {

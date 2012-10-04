@@ -39,16 +39,15 @@ import tajo.ipc.MasterWorkerProtocol;
 import tajo.ipc.MasterWorkerProtocol.MasterWorkerProtocolService;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.master.cluster.MasterAddressTracker;
-import tajo.rpc.*;
+import tajo.rpc.ProtoAsyncRpcClient;
+import tajo.rpc.ProtoAsyncRpcServer;
 import tajo.rpc.protocolrecords.PrimitiveProtos;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
 import tajo.zookeeper.ZkClient;
 import tajo.zookeeper.ZkUtil;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -270,7 +269,7 @@ public abstract class MockupWorker
     }
   }
 
-  protected void sendHeartbeat(long time) throws IOException {
+  /*protected void sendHeartbeat(long time) throws IOException {
     StatusReportProto.Builder ping = StatusReportProto.newBuilder();
     ping.setTimestamp(time);
     ping.setServerName(serverName);
@@ -298,7 +297,7 @@ public abstract class MockupWorker
     ping.addAllStatus(list);
     StatusReportProto proto = ping.build();
     master.statusUpdate(null, proto, NullCallback.get());
-  }
+  }*/
 
   protected void clear() {
     // remove the znode

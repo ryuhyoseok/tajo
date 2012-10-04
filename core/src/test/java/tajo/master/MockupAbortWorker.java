@@ -20,11 +20,8 @@
 
 package tajo.master;
 
-import org.apache.zookeeper.KeeperException;
 import tajo.TajoProtos.TaskAttemptState;
 import tajo.conf.TajoConf;
-
-import java.io.IOException;
 
 public class MockupAbortWorker extends MockupWorker {
   public MockupAbortWorker(TajoConf conf) {
@@ -60,7 +57,7 @@ public class MockupAbortWorker extends MockupWorker {
           progressTask();
           abortTask();
 
-          sendHeartbeat(time);
+          //sendHeartbeat(time);
           before = time;
         }
       }

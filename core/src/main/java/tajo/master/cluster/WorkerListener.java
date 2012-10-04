@@ -22,13 +22,14 @@ package tajo.master.cluster;
 
 import com.google.protobuf.RpcCallback;
 import com.google.protobuf.RpcController;
-import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.yarn.service.AbstractService;
 import tajo.QueryUnitAttemptId;
 import tajo.TajoProtos.QueryUnitAttemptIdProto;
-import tajo.common.Sleeper;
+import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.MasterWorkerProtos.QueryUnitRequestProto;
 import tajo.engine.MasterWorkerProtos.StatusReportProto;
@@ -44,38 +45,55 @@ import tajo.rpc.ProtoAsyncRpcServer;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
 
 import java.net.InetSocketAddress;
-import java.util.concurrent.atomic.AtomicInteger;
 
-public class WorkerListener extends Thread
+public class WorkerListener extends AbstractService
     implements MasterWorkerProtocolService.Interface {
   
   private final static Log LOG = LogFactory.getLog(WorkerListener.class);
   private MasterContext context;
-  private final ProtoAsyncRpcServer rpcServer;
+  private ProtoAsyncRpcServer rpcServer;
   private InetSocketAddress bindAddr;
   private String addr;
-  private volatile boolean stopped = false;
-  private AtomicInteger processed;
-  private AtomicInteger pinged;
-  private Sleeper sleeper;
   
   public WorkerListener(final MasterContext context) throws Exception {
+    super(WorkerListener.class.getName());
     this.context = context;
+  }
+
+  @Override
+  public void init(Configuration conf) {
 
     String confMasterAddr = context.getConf().getVar(ConfVars.MASTER_ADDRESS);
     InetSocketAddress initIsa = NetUtils.createSocketAddr(confMasterAddr);
     if (initIsa.getAddress() == null) {
       throw new IllegalArgumentException("Failed resolve of " + initIsa);
     }
-    this.rpcServer = new ProtoAsyncRpcServer(MasterWorkerProtocol.class,
-        this, initIsa);
-    this.stopped = false;
+    try {
+      this.rpcServer = new ProtoAsyncRpcServer(MasterWorkerProtocol.class,
+          this, initIsa);
+    } catch (Exception e) {
+      LOG.error(e);
+    }
     this.rpcServer.start();
     this.bindAddr = rpcServer.getBindAddress();
     this.addr = bindAddr.getHostName() + ":" + bindAddr.getPort();
-    processed = new AtomicInteger(0);
-    pinged = new AtomicInteger(0);
-    sleeper = new Sleeper();
+
+    // Setup RPC server
+    // Get the master address
+    LOG.info(WorkerListener.class.getSimpleName() + " is bind to " + addr);
+    context.getConf().setVar(TajoConf.ConfVars.MASTER_ADDRESS, addr);
+
+    super.init(conf);
+  }
+
+  @Override
+  public void start() {
+
+  }
+
+  @Override
+  public void stop() {
+    rpcServer.shutdown();
   }
   
   public InetSocketAddress getBindAddress() {
@@ -85,33 +103,8 @@ public class WorkerListener extends Thread
   public String getAddress() {
     return this.addr;
   }
-  
-  public boolean isStopped() {
-    return this.stopped;
-  }
-  
-  public void shutdown() {
-    this.stopped = true;
-  }
 
   static BoolProto TRUE_PROTO = BoolProto.newBuilder().setValue(true).build();
-
-  @Override
-  public void run() {
-    // rpc listen
-    try {
-      while (!this.stopped) {
-        processed.set(0);
-        pinged.set(0);
-        sleeper.sleep(1000);
-        LOG.info("processed: " + processed + ", pinged: " + pinged);
-      }
-    } catch (InterruptedException e) {
-      LOG.error(ExceptionUtils.getFullStackTrace(e));
-    } finally {
-      rpcServer.shutdown();
-    }
-  }
 
   @Override
   public void getTask(RpcController controller, WorkerId request,
@@ -120,6 +113,26 @@ public class WorkerListener extends Thread
   }
 
   @Override
+  public void statusUpdate(RpcController controller, TaskStatusProto request,
+                           RpcCallback<BoolProto> done) {
+    QueryUnitAttemptId attemptId = new QueryUnitAttemptId(request.getId());
+    context.getEventHandler().handle(new TaskAttemptStatusUpdateEvent(attemptId,
+        request));
+    done.run(TRUE_PROTO);
+  }
+
+  @Override
+  public void ping(RpcController controller,
+                   QueryUnitAttemptIdProto attemptIdProto,
+                   RpcCallback<BoolProto> done) {
+    QueryUnitAttemptId attemptId = new QueryUnitAttemptId(attemptIdProto);
+    context.getQuery(attemptId.getQueryId()).getSubQuery(attemptId.getSubQueryId()).
+        getQueryUnit(attemptId.getQueryUnitId()).getAttempt(attemptId).
+        resetExpireTime();
+    done.run(TRUE_PROTO);
+  }
+
+  @Deprecated
   public void statusUpdate(RpcController controller, StatusReportProto request,
                            RpcCallback<BoolProto> done) {
     if (context.getClusterManager().getFailedWorkers().contains(
@@ -130,14 +143,12 @@ public class WorkerListener extends Thread
     for (TaskStatusProto status : report.getProgressList()) {
       QueryUnitAttemptId uid = new QueryUnitAttemptId(status.getId());
       context.getEventHandler().handle(new TaskAttemptStatusUpdateEvent(uid, status));
-      processed.incrementAndGet();
     }
 
     for (QueryUnitAttemptIdProto pingId : report.getPingList()) {
       QueryUnitAttemptId taskId = new QueryUnitAttemptId(pingId);
       context.getQuery(taskId.getQueryId()).getSubQuery(taskId.getSubQueryId()).
           getQueryUnit(taskId.getQueryUnitId()).getAttempt(taskId).resetExpireTime();
-      pinged.incrementAndGet();
     }
 
     done.run(TRUE_PROTO);

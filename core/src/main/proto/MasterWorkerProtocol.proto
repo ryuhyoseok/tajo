@@ -21,6 +21,7 @@ option java_generate_equals_and_hash = true;
 
 import "MasterWorkerProtos.proto";
 import "PrimitiveProtos.proto";
+import "tajo_protos.proto";
 
 message WorkerId {
   required string hostAddress = 1;
@@ -28,5 +29,6 @@ message WorkerId {
 
 service MasterWorkerProtocolService {
   rpc getTask(WorkerId) returns (QueryUnitRequestProto);
-  rpc statusUpdate (StatusReportProto) returns (BoolProto);
+  rpc statusUpdate (TaskStatusProto) returns (BoolProto);
+  rpc ping (QueryUnitAttemptIdProto) returns (BoolProto);
 }

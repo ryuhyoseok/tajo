@@ -29,6 +29,8 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.util.StringUtils;
 import tajo.QueryUnitAttemptId;
 import tajo.TajoProtos.TaskAttemptState;
 import tajo.TaskAttemptContext;
@@ -49,9 +51,12 @@ import tajo.engine.planner.logical.SortNode;
 import tajo.engine.planner.logical.StoreTableNode;
 import tajo.engine.planner.physical.PhysicalExec;
 import tajo.engine.planner.physical.TupleComparator;
+import tajo.ipc.MasterWorkerProtocol.MasterWorkerProtocolService;
+import tajo.ipc.MasterWorkerProtocol.MasterWorkerProtocolService.Interface;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.master.SubQuery;
+import tajo.rpc.NullCallback;
 import tajo.worker.Worker.WorkerContext;
 
 import java.io.File;
@@ -70,6 +75,7 @@ public class Task implements Runnable {
   private final TajoConf conf;
   private final FileSystem localFS;
   private final WorkerContext workerContext;
+  private final MasterWorkerProtocolService.Interface masterProxy;
   private final LocalDirAllocator lDirAllocator;
   private final QueryUnitAttemptId taskId;
 
@@ -81,7 +87,9 @@ public class Task implements Runnable {
   private boolean killed = false;
   private boolean aborted = false;
   private boolean finished = false;
-  private int progress = 0;
+  private boolean stopped = false;
+  private float progress = 0;
+  private final Reporter reporter;
 
   /**
    * flag that indicates whether progress update needs to be sent to parent.
@@ -95,15 +103,18 @@ public class Task implements Runnable {
   private Schema finalSchema = null;
   private TupleComparator sortComp = null;
 
-  public Task(WorkerContext worker,
-              QueryUnitRequest request) throws IOException {
+  public Task(final WorkerContext worker, final Interface masterProxy,
+              final QueryUnitRequest request) throws IOException {
 
-    this.conf = worker.getConf();
-    this.workerContext = worker;
-    this.localFS = worker.getLocalFS();
-    this.lDirAllocator = worker.getLocalDirAllocator();
+    this.reporter = new Reporter(masterProxy);
+    this.reporter.startCommunicationThread();
 
     this.taskId = request.getId();
+    this.conf = worker.getConf();
+    this.workerContext = worker;
+    this.masterProxy = masterProxy;
+    this.localFS = worker.getLocalFS();
+    this.lDirAllocator = worker.getLocalDirAllocator();
 
     Path taskAttemptPath = localFS.makeQualified(lDirAllocator.
         getLocalPathForWrite(request.getId().toString(), conf));
@@ -383,6 +394,12 @@ public class Task implements Runnable {
       }
 
       setProgressFlag();
+
+      try {
+        reporter.stopCommunicationThread();
+      } catch (InterruptedException e) {
+        LOG.warn(e);
+      }
     }
   }
 
@@ -492,6 +509,79 @@ public class Task implements Runnable {
       return runnerList;
     } else {
       return Lists.newArrayList();
+    }
+  }
+
+  protected class Reporter implements Runnable {
+    private MasterWorkerProtocolService.Interface masterStub;
+    private Thread pingThread;
+    private Object lock = new Object();
+    private static final int PROGRESS_INTERVAL = 3000;
+
+    public Reporter(Interface masterStub) {
+      this.masterStub = masterStub;
+    }
+
+    @Override
+    public void run() {
+      final int MAX_RETRIES = 3;
+      int remainingRetries = MAX_RETRIES;
+
+      while (!stopped) {
+        try {
+          synchronized(lock) {
+            lock.wait(PROGRESS_INTERVAL);
+          }
+
+          // to send
+          TaskStatusProto taskStatus;
+          // to be removed
+          List<QueryUnitAttemptId> tobeRemoved = Lists.newArrayList();
+
+          // builds one status for each in-progress query
+          TaskAttemptState taskState;
+
+          if (getProgressFlag()) {
+              resetProgressFlag();
+              masterStub.statusUpdate(null, getReport(), NullCallback.get());
+            } else {
+              masterStub.ping(null, taskId.getProto(), NullCallback.get());
+            }
+
+        } catch (Throwable t) {
+
+          LOG.info("Communication exception: " + StringUtils
+              .stringifyException(t));
+          remainingRetries -=1;
+          if (remainingRetries == 0) {
+            ReflectionUtils.logThreadInfo(LOG, "Communication exception", 0);
+            LOG.warn("Last retry, killing ");
+            System.exit(65);
+          }
+        }
+      }
+    }
+
+    public void startCommunicationThread() {
+      if (pingThread == null) {
+        pingThread = new Thread(this, "communication thread");
+        pingThread.setDaemon(true);
+        pingThread.start();
+      }
+    }
+
+    public void stopCommunicationThread() throws InterruptedException {
+      if (pingThread != null) {
+        // Intent of the lock is to not send an interupt in the middle of an
+        // umbilical.ping or umbilical.statusUpdate
+        synchronized(lock) {
+          //Interrupt if sleeping. Otherwise wait for the RPC call to return.
+          lock.notify();
+        }
+
+        pingThread.interrupt();
+        pingThread.join();
+      }
     }
   }
 }

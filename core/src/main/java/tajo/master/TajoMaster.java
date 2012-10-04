@@ -171,13 +171,9 @@ public class TajoMaster extends CompositeService implements ClientService {
 
       // connect the zkserver
       this.zkClient = new ZkClient(conf);
-      this.workerListener = new WorkerListener(context);
 
-      // Setup RPC server
-      // Get the master address
-      LOG.info(TajoMaster.class.getSimpleName() + " is bind to "
-          + workerListener.getAddress());
-      this.conf.setVar(TajoConf.ConfVars.MASTER_ADDRESS, workerListener.getAddress());
+      this.workerListener = new WorkerListener(context);
+      addIfService(this.workerListener);
 
       String confClientServiceAddr = conf.getVar(ConfVars.CLIENT_SERVICE_ADDRESS);
       InetSocketAddress initIsa = NetUtils.createSocketAddr(confClientServiceAddr);
@@ -221,7 +217,6 @@ public class TajoMaster extends CompositeService implements ClientService {
       dispatcher.register(TaskEventType.class, new TaskEventDispatcher());
       dispatcher.register(TaskAttemptEventType.class, new TaskAttemptEventDispatcher());
 
-      this.workerListener.start();
     } catch (Exception e) {
 
     }
@@ -315,7 +310,6 @@ public class TajoMaster extends CompositeService implements ClientService {
   @Override
   public void stop() {
 
-    workerListener.shutdown();
     server.shutdown();
 
     if (zkServer != null) {

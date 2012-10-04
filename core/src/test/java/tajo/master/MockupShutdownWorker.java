@@ -22,10 +22,7 @@ package tajo.master;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.zookeeper.KeeperException;
 import tajo.conf.TajoConf;
-
-import java.io.IOException;
 
 public class MockupShutdownWorker extends MockupWorker {
   private final static Log LOG = LogFactory.getLog(MockupShutdownWorker.class);
@@ -62,7 +59,7 @@ public class MockupShutdownWorker extends MockupWorker {
           }
           progressTask();
 
-          sendHeartbeat(time);
+          //sendHeartbeat(time);
           before = time;
         }
       }
