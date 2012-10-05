@@ -402,7 +402,7 @@ public class BSTIndex implements IndexMethod {
     }
     
     public boolean isCurInMemory() {
-      return (offsetSubIndex[keyCursor].length - 1 >= offsetCursor);
+      return (offsetSubIndex[keyCursor].length - 1 > offsetCursor);
     }
 
     private void fillLeafIndex(int entryNum, FSDataInputStream in, long pos)
@@ -417,10 +417,16 @@ public class BSTIndex implements IndexMethod {
 
         byte[] buf;
 
+        int rbyte = 0;
         for (int i = 0; i < entryNum; i++) {
           counter++;
           buf = new byte[in.readInt()];
-          in.read(buf);
+          rbyte = in.read(buf);
+          while(rbyte != buf.length) {
+            int nbyte;
+            nbyte = in.read(buf, rbyte, (buf.length - rbyte));
+            rbyte += nbyte;
+          }
           dataSubIndex[i] = RowStoreUtil.RowStoreDecoder.toTuple(keySchema, buf);
 
           int offsetNum = in.readInt();
@@ -442,9 +448,14 @@ public class BSTIndex implements IndexMethod {
         byte[] buf;
         for (int i = 0; i < counter; i++) {
           buf = new byte[in.readInt()];
-          in.read(buf);
+          int rbyte= in.read(buf);
+          while(rbyte != buf.length) {
+            	int nbyte;
+            	nbyte = in.read(buf, rbyte, (buf.length - rbyte));
+            	rbyte += nbyte;
+              }
           dataSubIndex[i] = RowStoreUtil.RowStoreDecoder.toTuple(keySchema, buf);
-
+          
           int offsetNum = in.readInt();
           this.offsetSubIndex[i] = new long[offsetNum];
           for (int j = 0; j < offsetNum; j++) {
@@ -471,7 +482,13 @@ public class BSTIndex implements IndexMethod {
       byte[] buf;
       for (int i = 0; i < entryNum; i++) {
         buf = new byte[in.readInt()];
-        in.read(buf);
+        int rbyte= in.read(buf);
+        while(rbyte != buf.length) {
+          	int nbyte;
+          	nbyte = in.read(buf, rbyte, (buf.length - rbyte));
+          	rbyte += nbyte;
+         }
+        
         keyTuple = RowStoreUtil.RowStoreDecoder.toTuple(keySchema, buf);
         dataIndex[i] = keyTuple;
         this.offsetIndex[i] = in.readLong();
