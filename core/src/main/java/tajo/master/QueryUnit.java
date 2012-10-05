@@ -317,7 +317,7 @@ public class QueryUnit implements EventHandler<TaskEvent> {
 
       case 1:
         Map<QueryUnitAttemptId, QueryUnitAttempt> newAttempts
-            = new LinkedHashMap<QueryUnitAttemptId, QueryUnitAttempt>(3);
+            = new LinkedHashMap<>(3);
         newAttempts.putAll(attempts);
         attempts = newAttempts;
         attempts.put(attempt.getId(), attempt);

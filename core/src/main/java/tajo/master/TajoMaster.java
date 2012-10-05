@@ -35,6 +35,7 @@ import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
+import org.apache.hadoop.yarn.util.RackResolver;
 import org.apache.zookeeper.KeeperException;
 import tajo.*;
 import tajo.catalog.*;
@@ -56,8 +57,6 @@ import tajo.rpc.NettyRpcServer;
 import tajo.rpc.RemoteException;
 import tajo.rpc.protocolrecords.PrimitiveProtos.BoolProto;
 import tajo.rpc.protocolrecords.PrimitiveProtos.StringProto;
-import tajo.scheduler.DefaultScheduler;
-import tajo.scheduler.event.SchedulerEventType;
 import tajo.storage.StorageManager;
 import tajo.storage.StorageUtil;
 import tajo.webapp.StaticHttpServer;
@@ -93,12 +92,10 @@ public class TajoMaster extends CompositeService implements ClientService {
   private CatalogService catalog;
   private StorageManager storeManager;
   private GlobalEngine queryEngine;
-  private WorkerCommunicator communicator;
-  private ClusterManager clusterManager;
   private WorkerListener workerListener;
   private QueryManager qm;
   private AsyncDispatcher dispatcher;
-  private DefaultScheduler scheduler;
+  private ContainerAllocator containerAllocator;
 
   private InetSocketAddress clientServiceBindAddr;
   private NettyRpcServer server;
@@ -186,7 +183,8 @@ public class TajoMaster extends CompositeService implements ClientService {
       this.clientServiceBindAddr = this.server.getBindAddress();
       this.clientServiceAddr = clientServiceBindAddr.getHostName() + ":" +
           clientServiceBindAddr.getPort();
-      LOG.info("Tajo client service master is bind to " + this.clientServiceAddr);
+      LOG.info(
+          "Tajo client service master is bind to " + this.clientServiceAddr);
       this.conf.setVar(ConfVars.CLIENT_SERVICE_ADDRESS, this.clientServiceAddr);
 
       becomeMaster();
@@ -197,19 +195,11 @@ public class TajoMaster extends CompositeService implements ClientService {
       WorkerEventDispatcher workerEventDispatcher = new WorkerEventDispatcher();
       dispatcher.register(WorkerEventType.class, workerEventDispatcher);
 
-      this.communicator = new WorkerCommunicator(tracker, dispatcher.getEventHandler());
-      addIfService(this.communicator);
-      workerEventDispatcher.addHandler(this.communicator);
-
-      this.clusterManager = new ClusterManager(conf, communicator, tracker, catalog,
-          dispatcher.getEventHandler());
-      addIfService(clusterManager);
-
       this.queryEngine = new GlobalEngine(context, storeManager);
 
-      this.scheduler = new DefaultScheduler(context);
-      dispatcher.register(SchedulerEventType.class, this.scheduler);
-      addIfService(scheduler);
+      this.containerAllocator = new ContainerAllocator(context, dispatcher);
+      dispatcher.register(ContainerAllocatorEventType.class, this.containerAllocator);
+      addIfService(containerAllocator);
 
       dispatcher.register(QueryEventType.class, new QueryEventDispatcher());
       dispatcher.register(SubQueryEventType.class,
@@ -217,8 +207,9 @@ public class TajoMaster extends CompositeService implements ClientService {
       dispatcher.register(TaskEventType.class, new TaskEventDispatcher());
       dispatcher.register(TaskAttemptEventType.class, new TaskAttemptEventDispatcher());
 
+      RackResolver.init(conf);
     } catch (Exception e) {
-
+       LOG.error(e);
     }
 
     super.init(conf);
@@ -299,6 +290,7 @@ public class TajoMaster extends CompositeService implements ClientService {
     ZkUtil.createPersistentNodeIfNotExist(zkClient, NConstants.ZNODE_QUERIES);
     ZkUtil.upsertEphemeralNode(zkClient, NConstants.ZNODE_CLIENTSERVICE,
         clientServiceAddr.getBytes());
+    LOG.info("Create ZNode " + NConstants.ZNODE_MASTER);
   }
 
   @Override
@@ -349,14 +341,6 @@ public class TajoMaster extends CompositeService implements ClientService {
 
   public CatalogService getCatalog() {
     return this.catalog;
-  }
-
-  public WorkerCommunicator getWorkerCommunicator() {
-    return communicator;
-  }
-
-  public ClusterManager getClusterManager() {
-    return clusterManager;
   }
 
   public QueryManager getQueryManager() {
@@ -594,14 +578,6 @@ public class TajoMaster extends CompositeService implements ClientService {
 
     public CatalogService getCatalog() {
       return catalog;
-    }
-
-    public ClusterManager getClusterManager() {
-      return clusterManager;
-    }
-
-    public WorkerCommunicator getWorkerCommunicator() {
-      return communicator;
     }
   }
 }

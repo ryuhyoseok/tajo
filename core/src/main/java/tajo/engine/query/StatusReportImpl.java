@@ -34,6 +34,7 @@ public class StatusReportImpl implements StatusReport {
   private boolean viaProto;
   private Long timestamp;
   private String serverName;
+  private Integer availableTaskSlotNum;
   private List<TaskStatusProto> inProgressQueries;
   private List<QueryUnitAttemptIdProto> pings;
   
@@ -42,10 +43,12 @@ public class StatusReportImpl implements StatusReport {
   }
   
   public StatusReportImpl(long timestamp, String serverName,
+                          int availableTaskSlotNum,
                           List<TaskStatusProto> inProgress) {
     this();
     this.timestamp = timestamp;
     this.serverName = serverName;
+    this.availableTaskSlotNum = availableTaskSlotNum;
     this.inProgressQueries = 
         new ArrayList<TaskStatusProto>(inProgress);
   }

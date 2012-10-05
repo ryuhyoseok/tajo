@@ -82,7 +82,6 @@ public class GlobalPlanner {
     this.sm = sm;
     this.catalog = catalog;
     this.eventHandler = eventHandler;
-    this.cm = cm;
   }
 
   /**

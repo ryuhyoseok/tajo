@@ -27,7 +27,6 @@ import org.apache.hadoop.yarn.service.AbstractService;
 import tajo.QueryUnitAttemptId;
 import tajo.engine.MasterWorkerProtos.CommandRequestProto;
 import tajo.engine.MasterWorkerProtos.QueryUnitRequestProto;
-import tajo.engine.exception.UnknownWorkerException;
 import tajo.engine.planner.logical.ScanNode;
 import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.ipc.protocolrecords.Fragment;
@@ -81,8 +80,8 @@ public class DefaultScheduler extends AbstractService
           try {
             event = eventQueue.take();
 
-            context.getClusterManager().updateOnlineWorker();
-            context.getClusterManager().resetResourceInfo();
+            //context.getClusterManager().updateOnlineWorker();
+            //context.getClusterManager().resetResourceInfo();
 
             switch (event.getType()) {
               case SCHEDULE:
@@ -136,7 +135,7 @@ public class DefaultScheduler extends AbstractService
   }
 
   private String selectWorker(List<Fragment> fragList) {
-    ClusterManager cm = context.getClusterManager();
+    ClusterManager cm = null;
     if (cm.remainFreeResource()) {
       FragmentServingInfo info;
       ClusterManager.WorkerResource wr;
@@ -208,26 +207,18 @@ public class DefaultScheduler extends AbstractService
     try {
       if (proto instanceof QueryUnitRequestProto) {
         QueryUnitRequestProto request = (QueryUnitRequestProto) proto;
-        context.getWorkerCommunicator().requestQueryUnit(host, request);
+        //context.getWorkerCommunicator().requestQueryUnit(host, request);
 
         context.getEventHandler().handle(
             new TaskAttemptEvent(new QueryUnitAttemptId(request.getId()),
                 TaskAttemptEventType.TA_LAUNCHED));
       } else if (proto instanceof CommandRequestProto) {
-        context.getWorkerCommunicator().requestCommand(host,
-            (CommandRequestProto) proto);
+        //context.getWorkerCommunicator().requestCommand(host, (CommandRequestProto) proto);
       }
-    } catch (UnknownWorkerException e) {
-      handleUnknownWorkerException(e);
+    } catch (Exception e) {
       result = false;
     }
     return result;
-  }
-
-  private void handleUnknownWorkerException(UnknownWorkerException e) {
-    LOG.warn(e);
-    context.getClusterManager().addFailedWorker(e.getUnknownName());
-    LOG.info(e.getUnknownName() + " is excluded from the query planning.");
   }
 
   private void printQueryUnitRequestInfo(QueryUnitAttempt q,

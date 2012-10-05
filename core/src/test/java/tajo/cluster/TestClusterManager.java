@@ -46,8 +46,8 @@ public class TestClusterManager {
 
     master = util.getMiniTajoCluster().getMaster();
     assertNotNull(master);
-    wc = master.getWorkerCommunicator();
-    cm = master.getClusterManager();
+    wc = null;//master.getWorkerCommunicator();
+    cm = null;//master.getClusterManager();
     assertNotNull(wc);
     assertNotNull(cm);
     
@@ -107,27 +107,8 @@ public class TestClusterManager {
   }
 
   @Test
-  public void testGetWorkerInfo() throws Exception {
-    workersCollection = cm.getOnlineWorkers().values();
-    for (List<String> worker : workersCollection) {
-      for (String w : worker) {
-        WorkerInfo wi = cm.getWorkerInfo(w);
-        assertNotNull(wi.availableProcessors);
-        assertNotNull(wi.freeMemory);
-        assertNotNull(wi.totalMemory);
-
-        List<DiskInfo> disks = wi.disks;
-        for (DiskInfo di : disks) {
-          assertNotNull(di.freeSpace);
-          assertNotNull(di.totalSpace);
-        }
-      }
-    }
-  }
-
-  @Test
   public void testUpdateFragmentServingInfo2() throws IOException {
-    ClusterManager cm = master.getClusterManager();
+    ClusterManager cm = null;//master.getClusterManager();
     StorageManager sm = master.getStorageManager();
     int fragNum = 0;
     for (int i = 0; i < tbNum; i++) {
@@ -145,7 +126,7 @@ public class TestClusterManager {
 
   @Test
   public void testNextFreeHost() {
-    ClusterManager cm = master.getClusterManager();
+    ClusterManager cm = null;//master.getClusterManager();
     ClusterManager.WorkerResource wr;
     Set<String> onlineWorkers = Sets.newHashSet();
     for (int i = 0; i < 4; i++) {

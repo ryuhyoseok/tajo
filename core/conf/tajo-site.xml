@@ -28,7 +28,6 @@
   <name>tajo.cluster.distributed</name>
   <value>false</value>
 </property>
-
 <!--
 <property>
   <name>zookeeper.server.addr</name>

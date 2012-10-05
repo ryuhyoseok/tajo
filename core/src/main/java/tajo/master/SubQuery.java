@@ -447,12 +447,13 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
 //      SubQueryTaskEvent taskEvent = (SubQueryTaskEvent) event;
 //      QueryUnit task = subQuery.getQueryUnit(taskEvent.getTaskId());
 
+      LOG.info(getId() + " Succeed " + completedTaskCount + "/"
+          + subQuery.tasks.size());
       if (subQuery.completedTaskCount == subQuery.tasks.size()) {
         subQuery.eventHandler.handle(new SubQueryEvent(subQuery.getId(),
             SubQueryEventType.SQ_SUBQUERY_COMPLETED));
       }
     }
-
   }
 
   private static class SubQueryCompleteTransition
@@ -568,7 +569,7 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
 
       //notify the eventhandler of state change
       if (oldState != getState()) {
-        LOG.info(id + " Job Transitioned from " + oldState + " to "
+        LOG.info(id + " SubQuery Transitioned from " + oldState + " to "
             + getState());
       }
     }

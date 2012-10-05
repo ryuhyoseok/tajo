@@ -57,7 +57,7 @@ public class MockupAbortWorker extends MockupWorker {
           progressTask();
           abortTask();
 
-          //sendHeartbeat(time);
+          sendHeartbeat(time);
           before = time;
         }
       }

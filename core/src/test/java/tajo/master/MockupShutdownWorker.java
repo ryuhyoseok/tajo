@@ -59,7 +59,7 @@ public class MockupShutdownWorker extends MockupWorker {
           }
           progressTask();
 
-          //sendHeartbeat(time);
+          sendHeartbeat(time);
           before = time;
         }
       }

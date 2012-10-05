@@ -52,7 +52,7 @@ public class TestWorkerCommunicator {
 
     TajoMaster master = cluster.getMiniTajoCluster().getMaster();
     tracker = master.getTracker();
-    wc = master.getWorkerCommunicator();
+    //wc = master.getWorkerCommunicator();
   }
 
   @AfterClass

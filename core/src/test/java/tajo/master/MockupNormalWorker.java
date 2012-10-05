@@ -52,7 +52,7 @@ public class MockupNormalWorker extends MockupWorker {
           }
           progressTask();
 
-          //sendHeartbeat(time);
+          sendHeartbeat(time);
           before = time;
         }
       }

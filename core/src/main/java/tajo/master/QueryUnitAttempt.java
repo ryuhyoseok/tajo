@@ -18,6 +18,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.state.*;
+import org.apache.hadoop.yarn.util.RackResolver;
 import tajo.QueryUnitAttemptId;
 import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.statistics.TableStat;
@@ -26,6 +27,8 @@ import tajo.master.event.*;
 import tajo.scheduler.event.ScheduleTaskEvent;
 
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -56,10 +59,13 @@ public class QueryUnitAttempt implements EventHandler<TaskAttemptEvent> {
           TaskAttemptEventType.TA_SCHEDULE, new RequestScheduleTransition())
 
       .addTransition(TaskAttemptState.TA_UNASSIGNED, TaskAttemptState.TA_ASSIGNED,
-          TaskAttemptEventType.TA_ASSIGNED)
+          TaskAttemptEventType.TA_ASSIGNED, new LaunchTransition())
 
-      .addTransition(TaskAttemptState.TA_ASSIGNED, TaskAttemptState.TA_RUNNING,
-          TaskAttemptEventType.TA_LAUNCHED, new LaunchTransition())
+      .addTransition(TaskAttemptState.TA_ASSIGNED,
+          EnumSet.of(TaskAttemptState.TA_RUNNING, TaskAttemptState.TA_FAILED,
+              TaskAttemptState.TA_KILLED, TaskAttemptState.TA_SUCCEEDED),
+          TaskAttemptEventType.TA_UPDATE,
+          new StatusUpdateTransition())
 
       .addTransition(TaskAttemptState.TA_RUNNING,
           EnumSet.of(TaskAttemptState.TA_RUNNING, TaskAttemptState.TA_FAILED,
@@ -67,7 +73,8 @@ public class QueryUnitAttempt implements EventHandler<TaskAttemptEvent> {
           TaskAttemptEventType.TA_UPDATE,
           new StatusUpdateTransition())
 
-      .addTransition(TaskAttemptState.TA_SUCCEEDED, TaskAttemptState.TA_SUCCEEDED,
+      .addTransition(TaskAttemptState.TA_SUCCEEDED,
+          TaskAttemptState.TA_SUCCEEDED,
           TaskAttemptEventType.TA_UPDATE)
 
       .installTopology();
@@ -146,8 +153,17 @@ public class QueryUnitAttempt implements EventHandler<TaskAttemptEvent> {
     @Override
     public void transition(QueryUnitAttempt taskAttempt,
                            TaskAttemptEvent taskAttemptEvent) {
-      taskAttempt.eventHandler.handle(
-          new ScheduleTaskEvent(taskAttempt.getId()));
+
+      Set<String> racks = new HashSet<>();
+      for (String host : taskAttempt.getQueryUnit().getDataLocations()) {
+        racks.add(RackResolver.resolve(host).getNetworkLocation());
+      }
+
+      taskAttempt.eventHandler.handle(new ContainerAllocatorEvent(
+          taskAttempt.getId(), true,
+          taskAttempt.getQueryUnit().getDataLocations(),
+          racks.toArray(new String[racks.size()]),
+          ContainerAllocatorEventType.CONTAINER_REQ));
     }
   }
 

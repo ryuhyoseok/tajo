@@ -140,7 +140,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
     
     // Set our address.
     this.isa = this.rpcServer.getBindAddress();
-    this.serverName = this.isa.getHostName() + ":" + this.isa.getPort();
+    this.serverName = tajo.util.NetUtils.getIpPortString(isa);
     
     this.zkClient = new ZkClient(this.conf);
     this.queryLauncher = new QueryLauncher();
@@ -197,6 +197,10 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
       return conf;
     }
 
+    public String getWorkerName() {
+      return serverName;
+    }
+
     public AdvancedDataRetriever getRetriever() {
       return retriever;
     }
@@ -251,29 +255,39 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
         abort(e.getMessage(), e);
       }
 
-      final WorkerId workerId = WorkerId.newBuilder().
+      final WorkerId workerName = WorkerId.newBuilder().
           setHostAddress(serverName).build();
 
       taskLauncher = new Thread(new Runnable() {
         @Override
         public void run() {
-
-          CallFuture2<QueryUnitRequestProto> future;
-          QueryUnitRequestProto taskRequest;
+          int receivedNum = 0;
+          CallFuture2<QueryUnitRequestProto> callFuture = null;
+          QueryUnitRequestProto taskRequest = null;
 
           while(!stopped) {
             try {
 
-              while(!queryLauncher.hasAvailableSlot()) {
+              while(!stopped && !queryLauncher.hasAvailableSlot()) {
                 Thread.sleep(1000);
               }
 
-              future = new CallFuture2<>();
-              master.getTask(null, workerId, future);
-
-              taskRequest = future.get();
-              requestQueryUnit(taskRequest);
-
+              if (!stopped) {
+                if (callFuture == null) {
+                  callFuture = new CallFuture2<>();
+                  master.getTask(null, workerName, callFuture);
+                }
+                try {
+                  taskRequest = callFuture.get(3, TimeUnit.SECONDS);
+                } catch (TimeoutException te) {
+                }
+                if (taskRequest != null) {
+                  LOG.info("Accumulated Received Task: " + (++receivedNum));
+                  requestQueryUnit(taskRequest);
+                  callFuture = null;
+                  taskRequest = null;
+                }
+              }
             } catch (Throwable t) {
               LOG.error(t);
             }
@@ -438,7 +452,7 @@ public class Worker extends Thread implements AsyncWorkerProtocol {
   
   private class QueryLauncher extends Thread {
     private final BlockingQueue<Task> blockingQueue
-      = new ArrayBlockingQueue<>(coreNum);
+      = new ArrayBlockingQueue<>(6);
     private final ExecutorService executor
       = Executors.newFixedThreadPool(coreNum);
     private boolean stopped = false;

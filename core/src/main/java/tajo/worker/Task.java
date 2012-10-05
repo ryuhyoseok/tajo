@@ -91,6 +91,10 @@ public class Task implements Runnable {
   private float progress = 0;
   private final Reporter reporter;
 
+  private static int completed = 0;
+  private static int failed = 0;
+  private static int succeeded = 0;
+
   /**
    * flag that indicates whether progress update needs to be sent to parent.
    * If true, it has been set. If false, it has been reset.
@@ -279,12 +283,10 @@ public class Task implements Runnable {
 
   public TaskStatusProto getReport() {
     TaskStatusProto.Builder builder = TaskStatusProto.newBuilder();
+    builder.setWorkerName(workerContext.getWorkerName());
     builder.setId(context.getTaskId().getProto())
         .setProgress(context.getProgress()).setState(context.getState());
 
-/*      if (context.getStatSet(ExprType.STORE.toString()) != null) {
-        builder.setStats(context.getStatSet(ExprType.STORE.toString()).getProto());
-      }*/
     if (context.hasResultStats()) {
       builder.setResultStats(context.getResultStats().getProto());
     } else {
@@ -355,6 +357,8 @@ public class Task implements Runnable {
       LOG.error(ExceptionUtils.getStackTrace(e));
       aborted = true;
     } finally {
+      stopped = true;
+      completed++;
       finished = true;
       if (killed || aborted) {
         context.setProgress(0.0f);
@@ -365,6 +369,8 @@ public class Task implements Runnable {
           failedStatus = TaskAttemptState.TA_FAILED;
         }
         context.setState(failedStatus);
+        setProgressFlag();
+        failed++;
       } else { // if successful
         context.setProgress(1.0f);
         if (interQuery) { // TODO - to be completed
@@ -394,7 +400,10 @@ public class Task implements Runnable {
       }
 
       setProgressFlag();
+      succeeded++;
 
+      LOG.info("Task Counter - total:" + completed + ", succeeded: " + succeeded
+          + ", failed: " + failed);
       try {
         reporter.stopCommunicationThread();
       } catch (InterruptedException e) {
@@ -529,9 +538,7 @@ public class Task implements Runnable {
 
       while (!stopped) {
         try {
-          synchronized(lock) {
-            lock.wait(PROGRESS_INTERVAL);
-          }
+          Thread.sleep(PROGRESS_INTERVAL);
 
           // to send
           TaskStatusProto taskStatus;
@@ -542,11 +549,11 @@ public class Task implements Runnable {
           TaskAttemptState taskState;
 
           if (getProgressFlag()) {
-              resetProgressFlag();
-              masterStub.statusUpdate(null, getReport(), NullCallback.get());
-            } else {
-              masterStub.ping(null, taskId.getProto(), NullCallback.get());
-            }
+            resetProgressFlag();
+            masterStub.statusUpdate(null, getReport(), NullCallback.get());
+          } else {
+            masterStub.ping(null, taskId.getProto(), NullCallback.get());
+          }
 
         } catch (Throwable t) {
 
@@ -571,6 +578,10 @@ public class Task implements Runnable {
     }
 
     public void stopCommunicationThread() throws InterruptedException {
+      if (getProgressFlag()) {
+        masterStub.statusUpdate(null, getReport(), NullCallback.get());
+      }
+
       if (pingThread != null) {
         // Intent of the lock is to not send an interupt in the middle of an
         // umbilical.ping or umbilical.statusUpdate

@@ -22,17 +22,20 @@ package tajo.master;
 
 import tajo.QueryUnitAttemptId;
 import tajo.TajoProtos.TaskAttemptState;
+import tajo.ipc.MasterWorkerProtocol.MasterWorkerProtocolService.Interface;
 
 public class MockupTask {
   private QueryUnitAttemptId unitId;
   private TaskAttemptState state;
   private int leftTime;
+  private Interface masterProxy;
 
-  public MockupTask(QueryUnitAttemptId unitId,
+  public MockupTask(QueryUnitAttemptId unitId, Interface masterProxy,
                     int runTime) {
     this.unitId = unitId;
     this.state = TaskAttemptState.TA_PENDING;
     this.leftTime = runTime;
+    this.masterProxy = masterProxy;
   }
 
   public QueryUnitAttemptId getId() {

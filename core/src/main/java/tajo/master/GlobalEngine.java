@@ -77,7 +77,7 @@ public class GlobalEngine {
     analyzer = new QueryAnalyzer(context.getCatalog());
     planner = new LogicalPlanner(context.getCatalog());
     globalPlanner = new GlobalPlanner(context.getConf(), context.getCatalog(),
-        context.getClusterManager(), sm, context.getEventHandler());
+        null, sm, context.getEventHandler());
     globalOptimizer = new GlobalOptimizer();
   }
 
@@ -184,7 +184,7 @@ public class GlobalEngine {
 
   private void updateFragmentServingInfo(PlanningContext planningContext)
       throws IOException {
-    context.getClusterManager().updateOnlineWorker();
+    //context.getClusterManager().updateOnlineWorker();
 
     ParseTree parseTree = planningContext.getParseTree();
     if (planningContext.getParseTree() instanceof CreateTableStmt) {
@@ -193,7 +193,7 @@ public class GlobalEngine {
     }
 
     for (String table : parseTree.getAllTableNames()) {
-      context.getClusterManager().updateFragmentServingInfo2(table);
+      //context.getClusterManager().updateFragmentServingInfo2(table);
     }
   }
 }

@@ -39,6 +39,7 @@ import tajo.ipc.MasterWorkerProtocol;
 import tajo.ipc.MasterWorkerProtocol.MasterWorkerProtocolService;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.master.cluster.MasterAddressTracker;
+import tajo.rpc.NullCallback;
 import tajo.rpc.ProtoAsyncRpcClient;
 import tajo.rpc.ProtoAsyncRpcServer;
 import tajo.rpc.protocolrecords.PrimitiveProtos;
@@ -47,7 +48,9 @@ import tajo.zookeeper.ZkClient;
 import tajo.zookeeper.ZkUtil;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -157,7 +160,7 @@ public abstract class MockupWorker
   @Override
   public BoolProto requestQueryUnit(QueryUnitRequestProto proto) throws Exception {
     QueryUnitRequest request = new QueryUnitRequestImpl(proto);
-    MockupTask task = new MockupTask(request.getId(), 9000);
+    MockupTask task = new MockupTask(request.getId(), master, 9000);
     if (taskMap.containsKey(task.getId())) {
       throw new IllegalStateException("Query unit (" + task.getId() + ") is already is submitted");
     }
@@ -197,8 +200,6 @@ public abstract class MockupWorker
   public ServerStatusProto getServerStatus(PrimitiveProtos.NullProto request) {
     // serverStatus builder
     ServerStatusProto.Builder serverStatus = ServerStatusProto.newBuilder();
-    // TODO: compute the available number of task slots
-    serverStatus.setTaskNum(taskQueue.size());
 
     // system(CPU, memory) status builder
     ServerStatusProto.System.Builder systemStatus = ServerStatusProto.System
@@ -269,14 +270,12 @@ public abstract class MockupWorker
     }
   }
 
-  /*protected void sendHeartbeat(long time) throws IOException {
+  protected void sendHeartbeat(long time) throws IOException {
     StatusReportProto.Builder ping = StatusReportProto.newBuilder();
     ping.setTimestamp(time);
     ping.setServerName(serverName);
 
     // to send
-    List<TaskStatusProto> list
-        = new ArrayList<TaskStatusProto>();
     TaskStatusProto status;
     // to be removed
     List<QueryUnitAttemptId> tobeRemoved = Lists.newArrayList();
@@ -291,13 +290,9 @@ public abstract class MockupWorker
       }
 
       status = this.getReport(task.getId(), task.getState());
-      list.add(status);
+      master.statusUpdate(null, status, NullCallback.get());
     }
-
-    ping.addAllStatus(list);
-    StatusReportProto proto = ping.build();
-    master.statusUpdate(null, proto, NullCallback.get());
-  }*/
+  }
 
   protected void clear() {
     // remove the znode
