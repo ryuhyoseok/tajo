@@ -538,7 +538,16 @@ public class Task implements Runnable {
 
       while (!stopped) {
         try {
-          Thread.sleep(PROGRESS_INTERVAL);
+          synchronized (lock) {
+            if (stopped) {
+              break;
+            }
+            lock.wait(PROGRESS_INTERVAL);
+          }
+          if (stopped) {
+            break;
+          }
+          resetProgressFlag();
 
           // to send
           TaskStatusProto taskStatus;

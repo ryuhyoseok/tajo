@@ -124,9 +124,6 @@ public class GlobalEngine {
       return createTable(plan);
     } else {
 
-      // other queries are executed by workers
-      updateFragmentServingInfo(planningContext);
-
       QueryId queryId = QueryIdFactory.newQueryId();
       MasterPlan masterPlan = createGlobalPlan(queryId, plan);
       Query query = createQuery(queryId, tql, masterPlan);
@@ -180,20 +177,5 @@ public class GlobalEngine {
         QueryEventType.INIT));
     context.getEventHandler().handle(
         new QueryEvent(query.getId(), QueryEventType.START));
-  }
-
-  private void updateFragmentServingInfo(PlanningContext planningContext)
-      throws IOException {
-    //context.getClusterManager().updateOnlineWorker();
-
-    ParseTree parseTree = planningContext.getParseTree();
-    if (planningContext.getParseTree() instanceof CreateTableStmt) {
-      parseTree = ((CreateTableStmt) planningContext.getParseTree()).
-          getSelectStmt();
-    }
-
-    for (String table : parseTree.getAllTableNames()) {
-      //context.getClusterManager().updateFragmentServingInfo2(table);
-    }
   }
 }

@@ -271,6 +271,47 @@ public class ContainerAllocator extends AbstractService
               task.getOutputName(),
               false,
               task.getLogicalPlan().toJSON());
+          if (task.getStoreTableNode().isLocal()) {
+            taskAssign.setInterQuery();
+          }
+          context.getEventHandler().handle(new TaskAttemptEvent(attemptId,
+              TaskAttemptEventType.TA_ASSIGNED));
+          taskRequest.getCallback().run(taskAssign.getProto());
+        }
+      }
+    }
+
+    public void assignToNonLeafTasks(List<TaskRequestEvent> taskRequests) {
+      Iterator<TaskRequestEvent> it = taskRequests.iterator();
+      LOG.info("Got task requests " + taskRequests.size());
+
+      TaskRequestEvent taskRequest;
+      while (it.hasNext()) {
+        taskRequest = it.next();
+
+        QueryUnitAttemptId attemptId = null;
+        while (attemptId == null && scheduledRequests.size() > 0) {
+
+          String hostName = taskRequest.getWorkerId().getHostAddress();
+
+          // random allocation
+          if (attemptId == null) {
+            attemptId = leafTasks.iterator().next();
+            leafTasks.remove(attemptId);
+            LOG.debug("Assigned based on * match");
+          }
+
+          QueryUnit task = context.getQuery(attemptId.getQueryId())
+              .getSubQuery(attemptId.getSubQueryId()).getQueryUnit(attemptId.getQueryUnitId());
+          QueryUnitRequest taskAssign = new QueryUnitRequestImpl(
+              attemptId,
+              Lists.newArrayList(task.getAllFragments()),
+              task.getOutputName(),
+              false,
+              task.getLogicalPlan().toJSON());
+          if (task.getStoreTableNode().isLocal()) {
+            taskAssign.setInterQuery();
+          }
           context.getEventHandler().handle(new TaskAttemptEvent(attemptId,
               TaskAttemptEventType.TA_ASSIGNED));
           taskRequest.getCallback().run(taskAssign.getProto());

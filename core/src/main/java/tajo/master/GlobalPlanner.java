@@ -349,7 +349,6 @@ public class GlobalPlanner {
         case SCAN:  // store - scan
           subQuery = makeScanSubQuery(subQuery);
           subQuery.setLogicalPlan(node);
-          subQuery.setLeafQuery();
           break;
         case SELECTION:
         case PROJECTION:
@@ -376,13 +375,19 @@ public class GlobalPlanner {
           subQuery = null;
           break;
         }
+
+        if (!subQuery.hasChildQuery()) {
+          subQuery.setLeafQuery();
+        }
         convertMap.put(store, subQuery);
       }
     } else if (node instanceof BinaryNode) {
       recursiveBuildSubQuery(((BinaryNode) node).getOuterNode());
       recursiveBuildSubQuery(((BinaryNode) node).getInnerNode());
+    } else if (node instanceof ScanNode) {
+
     } else {
-      
+
     }
   }
   
