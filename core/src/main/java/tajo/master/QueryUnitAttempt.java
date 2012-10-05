@@ -24,7 +24,6 @@ import tajo.TajoProtos.TaskAttemptState;
 import tajo.catalog.statistics.TableStat;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
 import tajo.master.event.*;
-import tajo.scheduler.event.ScheduleTaskEvent;
 
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -110,6 +109,10 @@ public class QueryUnitAttempt implements EventHandler<TaskAttemptEvent> {
     return this.id;
   }
 
+  public boolean isLeafTask() {
+    return this.queryUnit.isLeafTask();
+  }
+
   public QueryUnit getQueryUnit() {
     return this.queryUnit;
   }
@@ -154,16 +157,25 @@ public class QueryUnitAttempt implements EventHandler<TaskAttemptEvent> {
     public void transition(QueryUnitAttempt taskAttempt,
                            TaskAttemptEvent taskAttemptEvent) {
 
-      Set<String> racks = new HashSet<>();
-      for (String host : taskAttempt.getQueryUnit().getDataLocations()) {
-        racks.add(RackResolver.resolve(host).getNetworkLocation());
-      }
+      if (taskAttempt.isLeafTask()
+          && taskAttempt.getQueryUnit().getScanNodes().length == 1) {
+        Set<String> racks = new HashSet<>();
+        for (String host : taskAttempt.getQueryUnit().getDataLocations()) {
+          racks.add(RackResolver.resolve(host).getNetworkLocation());
+        }
 
-      taskAttempt.eventHandler.handle(new ContainerAllocatorEvent(
-          taskAttempt.getId(), true,
-          taskAttempt.getQueryUnit().getDataLocations(),
-          racks.toArray(new String[racks.size()]),
-          ContainerAllocatorEventType.CONTAINER_REQ));
+        taskAttempt.eventHandler.handle(new ContainerAllocatorEvent(
+            taskAttempt.getId(), true,
+            taskAttempt.getQueryUnit().getDataLocations(),
+            racks.toArray(new String[racks.size()]),
+            ContainerAllocatorEventType.CONTAINER_REQ));
+      } else {
+        taskAttempt.eventHandler.handle(new ContainerAllocatorEvent(
+            taskAttempt.getId(), false,
+            null,
+            null,
+            ContainerAllocatorEventType.CONTAINER_REQ));
+      }
     }
   }
 

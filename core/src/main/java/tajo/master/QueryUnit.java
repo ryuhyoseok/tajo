@@ -27,8 +27,8 @@ import tajo.QueryUnitId;
 import tajo.catalog.Schema;
 import tajo.catalog.statistics.TableStat;
 import tajo.engine.MasterWorkerProtos.Partition;
-import tajo.ipc.protocolrecords.Fragment;
 import tajo.engine.planner.logical.*;
+import tajo.ipc.protocolrecords.Fragment;
 import tajo.master.event.*;
 
 import java.net.URI;
@@ -55,6 +55,7 @@ public class QueryUnit implements EventHandler<TaskEvent> {
   private List<Partition> partitions;
 	private TableStat stats;
   private String [] dataLocations;
+  private final boolean isLeafTask;
 
   private Map<QueryUnitAttemptId, QueryUnitAttempt> attempts;
   private final int maxAttempts = 3;
@@ -90,13 +91,14 @@ public class QueryUnit implements EventHandler<TaskEvent> {
   private final Lock readLock;
   private final Lock writeLock;
 
-	public QueryUnit(QueryUnitId id, EventHandler eventHandler) {
+	public QueryUnit(QueryUnitId id, boolean isLeafTask, EventHandler eventHandler) {
 		this.taskId = id;
     this.eventHandler = eventHandler;
-		scan = new ArrayList<ScanNode>();
+    this.isLeafTask = isLeafTask;
+		scan = new ArrayList<>();
     fetchMap = Maps.newHashMap();
     fragMap = Maps.newHashMap();
-    partitions = new ArrayList<Partition>();
+    partitions = new ArrayList<>();
     attempts = Collections.emptyMap();
     lastAttemptId = -1;
     failedAttempts = 0;
@@ -107,6 +109,10 @@ public class QueryUnit implements EventHandler<TaskEvent> {
 
     stateMachine = stateMachineFactory.make(this);
 	}
+
+  public boolean isLeafTask() {
+    return this.isLeafTask;
+  }
 
   public void setDataLocations(String [] dataLocations) {
     this.dataLocations = dataLocations;

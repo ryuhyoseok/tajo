@@ -51,7 +51,7 @@ import tajo.engine.planner.logical.*;
 import tajo.engine.utils.TupleUtil;
 import tajo.ipc.protocolrecords.Fragment;
 import tajo.master.SubQuery.PARTITION_TYPE;
-import tajo.master.cluster.ClusterManager;
+import tajo.master.cluster.WorkerTracker;
 import tajo.storage.StorageManager;
 import tajo.storage.TupleRange;
 import tajo.util.TajoIdUtils;
@@ -72,16 +72,17 @@ public class GlobalPlanner {
   private CatalogService catalog;
   private QueryId queryId;
   private EventHandler eventHandler;
-  private ClusterManager cm;
+  private WorkerTracker cm;
 
   public GlobalPlanner(final TajoConf conf, final CatalogService catalog,
-                       final ClusterManager cm, final StorageManager sm,
+                       final WorkerTracker cm, final StorageManager sm,
                        final EventHandler eventHandler)
       throws IOException {
     this.conf = conf;
     this.sm = sm;
     this.catalog = catalog;
     this.eventHandler = eventHandler;
+    this.cm = cm;
   }
 
   /**
@@ -146,7 +147,7 @@ public class GlobalPlanner {
         && grpNode.getGroupingColumns().length == 0) {
       numTasks = 1;
     } else {
-      numTasks = cm.getOnlineWorkers().size();
+      numTasks = cm.getMembers().size();
     }
     return numTasks;
   }
@@ -836,7 +837,7 @@ public class GlobalPlanner {
     return new MasterPlan(root);
   }
   
-  private SubQuery setPartitionNumberForTwoPhase(SubQuery unit, final int n) {
+  public SubQuery setPartitionNumberForTwoPhase(SubQuery unit, final int n) {
     Column[] keys = null;
     // if the next query is join, 
     // set the partition number for the current logicalUnit
@@ -1230,7 +1231,7 @@ public class GlobalPlanner {
   
   private QueryUnit newQueryUnit(SubQuery subQuery) {
     QueryUnit unit = new QueryUnit(
-        QueryIdFactory.newQueryUnitId(subQuery.getId()), eventHandler);
+        QueryIdFactory.newQueryUnitId(subQuery.getId()), subQuery.isLeafQuery(), eventHandler);
     unit.setLogicalPlan(subQuery.getLogicalPlan());
     return unit;
   }

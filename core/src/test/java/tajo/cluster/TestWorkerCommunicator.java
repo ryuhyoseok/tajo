@@ -22,7 +22,6 @@ package tajo.cluster;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 import tajo.TajoTestingUtility;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto;
 import tajo.engine.MasterWorkerProtos.ServerStatusProto.Disk;
@@ -60,7 +59,7 @@ public class TestWorkerCommunicator {
     cluster.shutdownMiniCluster();
   }
 
-  @Test
+  //@Test
   public void test() throws Exception {
     cluster.getMiniTajoCluster().startWorkers();
     Thread.sleep(1000);

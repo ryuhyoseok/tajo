@@ -383,7 +383,9 @@ public class SubQuery implements EventHandler<SubQueryEvent> {
               subQuery.getOutputType());
 
           QueryUnit [] tasks;
-          if (subQuery.isLeafQuery()) {
+          // TODO - should be improved
+          if (subQuery.isLeafQuery() && subQuery.getScanNodes().length == 1) {
+            subQuery.getPlanner().setPartitionNumberForTwoPhase(subQuery, 4);
             tasks = subQuery.getPlanner().createLeafTasks(subQuery);
           } else {
             int numTasks = subQuery.getPlanner().getTaskNum(subQuery);

@@ -142,7 +142,7 @@ public class TestTajoTestingUtility {
           "testNtaTestingUtil := select deptName, sleep(name) from employee group by deptName");
       plan = planner.createPlan(context);
       plan = LogicalOptimizer.optimize(context, plan);
-      QueryUnit unit = new QueryUnit(qid, dispatcher.getEventHandler());
+      QueryUnit unit = new QueryUnit(qid, true, dispatcher.getEventHandler());
       queryUnits.add(unit);
       QueryUnitAttempt attempt = unit.newAttempt();
       req = new QueryUnitRequestImpl(

@@ -25,12 +25,14 @@ import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.util.RackResolver;
 import tajo.QueryUnitAttemptId;
+import tajo.engine.planner.logical.ScanNode;
 import tajo.engine.query.QueryUnitRequestImpl;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.master.TajoMaster.MasterContext;
 import tajo.master.event.*;
 import tajo.master.event.TaskRequestEvent.TaskRequestEventType;
 
+import java.net.URI;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -117,18 +119,37 @@ public class ContainerAllocator extends AbstractService
     if (event.getType() == ContainerAllocatorEventType.CONTAINER_REQ) {
       if (event.isLeafQuery()) {
         scheduledRequests.addLeafTask(event);
+      } else {
+        scheduledRequests.addNonLeafTask(event);
       }
     }
   }
 
   List<TaskRequestEvent> taskRequestEvents = new ArrayList<>();
   public void schedule() {
-    if (scheduledRequests.size() > 0 && taskRequests.size() > 0) {
-      LOG.info("Try to schedule tasks - taskRequestEvents: " +
-          taskRequests.size() + ", Schedule Request: " + scheduledRequests.size());
-      taskRequests.getTaskRequests(taskRequestEvents, scheduledRequests.size());
-      scheduledRequests.assignToLeafTasks(taskRequestEvents);
-      taskRequestEvents.clear();
+
+    if (taskRequests.size() > 0) {
+      if (scheduledRequests.leafTaskNum() > 0) {
+        LOG.info("Try to schedule tasks with taskRequestEvents: " +
+            taskRequests.size() + ", LeafTask Schedule Request: " +
+            scheduledRequests.leafTaskNum());
+        taskRequests.getTaskRequests(taskRequestEvents,
+            scheduledRequests.leafTaskNum());
+        scheduledRequests.assignToLeafTasks(taskRequestEvents);
+        taskRequestEvents.clear();
+      }
+    }
+
+    if (taskRequests.size() > 0) {
+      if (scheduledRequests.nonLeafTaskNum() > 0) {
+        LOG.info("Try to schedule tasks with taskRequestEvents: " +
+            taskRequests.size() + ", NonLeafTask Schedule Request: " +
+            scheduledRequests.nonLeafTaskNum());
+        taskRequests.getTaskRequests(taskRequestEvents,
+            scheduledRequests.nonLeafTaskNum());
+        scheduledRequests.assignToNonLeafTasks(taskRequestEvents);
+        taskRequestEvents.clear();
+      }
     }
   }
 
@@ -182,6 +203,7 @@ public class ContainerAllocator extends AbstractService
 
   private class ScheduledRequests {
     private final HashSet<QueryUnitAttemptId> leafTasks = new HashSet<>();
+    private final HashSet<QueryUnitAttemptId> nonLeafTasks = new HashSet<>();
     private final Map<String, LinkedList<QueryUnitAttemptId>> leafTasksHostMapping =
         new HashMap<>();
     private final Map<String, LinkedList<QueryUnitAttemptId>> leafTasksRackMapping =
@@ -214,8 +236,16 @@ public class ContainerAllocator extends AbstractService
       leafTasks.add(event.getAttemptId());
     }
 
-    public int size() {
+    public void addNonLeafTask(ContainerAllocatorEvent event) {
+      nonLeafTasks.add(event.getAttemptId());
+    }
+
+    public int leafTaskNum() {
       return leafTasks.size();
+    }
+
+    public int nonLeafTaskNum() {
+      return nonLeafTasks.size();
     }
 
     public void assignToLeafTasks(List<TaskRequestEvent> taskRequests) {
@@ -227,7 +257,7 @@ public class ContainerAllocator extends AbstractService
         taskRequest = it.next();
 
         QueryUnitAttemptId attemptId = null;
-        while (attemptId == null && scheduledRequests.size() > 0) {
+        while (attemptId == null && leafTasks.size() > 0) {
 
           String hostName = taskRequest.getWorkerId().getHostAddress();
 
@@ -290,16 +320,11 @@ public class ContainerAllocator extends AbstractService
         taskRequest = it.next();
 
         QueryUnitAttemptId attemptId = null;
-        while (attemptId == null && scheduledRequests.size() > 0) {
-
-          String hostName = taskRequest.getWorkerId().getHostAddress();
-
-          // random allocation
-          if (attemptId == null) {
-            attemptId = leafTasks.iterator().next();
-            leafTasks.remove(attemptId);
-            LOG.debug("Assigned based on * match");
-          }
+        // random allocation
+        if (attemptId == null && nonLeafTasks.size() > 0) {
+          attemptId = nonLeafTasks.iterator().next();
+          nonLeafTasks.remove(attemptId);
+          LOG.debug("Assigned based on * match");
 
           QueryUnit task = context.getQuery(attemptId.getQueryId())
               .getSubQuery(attemptId.getSubQueryId()).getQueryUnit(attemptId.getQueryUnitId());
@@ -312,6 +337,15 @@ public class ContainerAllocator extends AbstractService
           if (task.getStoreTableNode().isLocal()) {
             taskAssign.setInterQuery();
           }
+          for (ScanNode scan : task.getScanNodes()) {
+            Collection<URI> fetches = task.getFetch(scan);
+            if (fetches != null) {
+              for (URI fetch : fetches) {
+                taskAssign.addFetch(scan.getTableId(), fetch);
+              }
+            }
+          }
+
           context.getEventHandler().handle(new TaskAttemptEvent(attemptId,
               TaskAttemptEventType.TA_ASSIGNED));
           taskRequest.getCallback().run(taskAssign.getProto());

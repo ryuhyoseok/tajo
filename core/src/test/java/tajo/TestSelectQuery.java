@@ -64,6 +64,7 @@ public class TestSelectQuery {
     res.next();
     assertEquals(1, res.getInt(1));
     assertEquals(1, res.getInt(2));
+    assertEquals(1, res.getInt(2));
 
     res.next();
     assertEquals(2, res.getInt(1));

@@ -228,8 +228,8 @@ public class TestWorker {
     qm.addSubQuery(su);
     sm.initTableBase(frags[0].getMeta(), "testLeafServer");
     QueryUnit [] qu = new QueryUnit[2];
-    qu[0] = new QueryUnit(qid1, master.getEventHandler());
-    qu[1] = new QueryUnit(qid2, master.getEventHandler());
+    qu[0] = new QueryUnit(qid1, true, master.getEventHandler());
+    qu[1] = new QueryUnit(qid2, true, master.getEventHandler());
     su.setQueryUnits(Lists.newArrayList(qu));
     //qu[0].setState(QueryStatus.QUERY_INITED);
     //qu[1].setState(QueryStatus.QUERY_INITED);

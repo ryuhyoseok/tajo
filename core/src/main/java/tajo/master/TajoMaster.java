@@ -48,7 +48,9 @@ import tajo.conf.TajoConf;
 import tajo.conf.TajoConf.ConfVars;
 import tajo.engine.ClientServiceProtos.*;
 import tajo.engine.MasterWorkerProtos.TaskStatusProto;
-import tajo.master.cluster.*;
+import tajo.master.cluster.QueryManager;
+import tajo.master.cluster.WorkerListener;
+import tajo.master.cluster.WorkerTracker;
 import tajo.master.cluster.event.WorkerEvent;
 import tajo.master.cluster.event.WorkerEventType;
 import tajo.master.event.*;
@@ -578,6 +580,10 @@ public class TajoMaster extends CompositeService implements ClientService {
 
     public CatalogService getCatalog() {
       return catalog;
+    }
+
+    public WorkerTracker getWorkerTracker() {
+      return tracker;
     }
   }
 }

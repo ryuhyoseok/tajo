@@ -36,8 +36,6 @@ import tajo.engine.exception.EmptyClusterException;
 import tajo.engine.exception.IllegalQueryStatusException;
 import tajo.engine.exception.NoSuchQueryIdException;
 import tajo.engine.exception.UnknownWorkerException;
-import tajo.engine.parser.CreateTableStmt;
-import tajo.engine.parser.ParseTree;
 import tajo.engine.parser.QueryAnalyzer;
 import tajo.engine.planner.LogicalOptimizer;
 import tajo.engine.planner.LogicalPlanner;
@@ -77,7 +75,7 @@ public class GlobalEngine {
     analyzer = new QueryAnalyzer(context.getCatalog());
     planner = new LogicalPlanner(context.getCatalog());
     globalPlanner = new GlobalPlanner(context.getConf(), context.getCatalog(),
-        null, sm, context.getEventHandler());
+        context.getWorkerTracker(), sm, context.getEventHandler());
     globalOptimizer = new GlobalOptimizer();
   }
 
