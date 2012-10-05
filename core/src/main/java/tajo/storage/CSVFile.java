@@ -225,10 +225,11 @@ public class CSVFile extends SingleStorge {
     private long pageStart = -1;
     private long prevTailLen = -1;
     private HashMap<Long, Integer> curTupleOffsetMap = null;
+    private int rbyte = 0;
 
     public void init(Configuration conf, final Schema schema,
         final Fragment fragment) throws IOException {
-
+    	
       // Buffer size, Delimiter
       this.bufSize = DEFAULT_BUFFER_SIZE;
       this.delimiter = fragment.getMeta().getOption(DELIMITER,
@@ -280,7 +281,7 @@ public class CSVFile extends SingleStorge {
       }
 
       // Read
-      int rbyte = 0;
+      rbyte = 0;
       if (fis.getPos() == startPos) {
         buf = new byte[(int) bufSize];
         rbyte = fis.read(buf);
@@ -291,7 +292,6 @@ public class CSVFile extends SingleStorge {
         rbyte = fis.read(buf);
         tuples = (new String(tail) + new String(buf,0,rbyte)).split("\n");
       }
-
       // Check tail
       if ((char) buf[rbyte - 1] != LF) {
         if (fragmentable() < 1) {
@@ -426,20 +426,21 @@ public class CSVFile extends SingleStorge {
     public void seek(long offset) throws IOException {
       if (this.curTupleOffsetMap.containsKey(offset)) {
         this.currentIdx = this.curTupleOffsetMap.get(offset);
-      } else if (offset >= this.pageStart + this.bufSize 
+      } else if (offset >= this.pageStart + this.rbyte
           + this.prevTailLen - this.tail.length || offset <= this.pageStart) {
-        fis.seek(offset);
+    	 fis.seek(offset);
         tail = new byte[0];
         buf = new byte[(int) DEFAULT_BUFFER_SIZE];
         bufSize = DEFAULT_BUFFER_SIZE;
         this.currentIdx = 0;
         this.validIdx = 0;
         // pageBuffer();
+        
       } else {
         throw new IOException("invalid offset " +
            " < pageStart : " +  this.pageStart + " , " + 
-           "  pagelength : " + this.bufSize + " , " + 
-           "  tail lenght : " + this.tail.length + 
+           "  pagelength : " + this.rbyte + " , " + 
+           "  tail length : " + this.tail.length + 
            "  input offset : " + offset + " >");
       }
 
