@@ -296,7 +296,6 @@ public class TestPhysicalPlanner {
       assertEquals(1, tuple.get(4).asInt()); // min
       i++;
     }
-    exec.close();
     assertEquals(10, i);
 
     exec.rescan();
@@ -308,6 +307,7 @@ public class TestPhysicalPlanner {
       i++;
     }
     assertEquals(10, i);
+    exec.close();
   }
 
   @Test
