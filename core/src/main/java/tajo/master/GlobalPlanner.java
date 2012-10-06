@@ -352,6 +352,7 @@ public class GlobalPlanner {
           break;
         case SELECTION:
         case PROJECTION:
+        case LIMIT:
           subQuery = makeUnarySubQuery(store, node, subQuery);
           subQuery.setLogicalPlan(node);
           break;

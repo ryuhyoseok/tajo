@@ -307,6 +307,14 @@ public class LogicalPlanner {
       dupRemoval.setOutSchema(outSchema);
       subroot = dupRemoval;
     }
+
+    if (query.hasLimitClause()) {
+      LimitNode limitNode = new LimitNode(query.getLimitClause());
+      limitNode.setSubNode(subroot);
+      limitNode.setInSchema(subroot.getOutSchema());
+      limitNode.setOutSchema(limitNode.getInSchema());
+      subroot = limitNode;
+    }
     
     return subroot;
   }
