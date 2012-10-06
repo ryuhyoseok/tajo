@@ -45,7 +45,6 @@ import tajo.engine.exception.InternalException;
 import tajo.engine.exception.UnfinishedTaskException;
 import tajo.engine.json.GsonCreator;
 import tajo.engine.planner.PlannerUtil;
-import tajo.engine.planner.logical.ExprType;
 import tajo.engine.planner.logical.LogicalNode;
 import tajo.engine.planner.logical.SortNode;
 import tajo.engine.planner.logical.StoreTableNode;
@@ -57,6 +56,7 @@ import tajo.ipc.protocolrecords.Fragment;
 import tajo.ipc.protocolrecords.QueryUnitRequest;
 import tajo.master.SubQuery;
 import tajo.rpc.NullCallback;
+import tajo.master.SubQuery.PARTITION_TYPE;
 import tajo.worker.Worker.WorkerContext;
 
 import java.io.File;
@@ -135,7 +135,7 @@ public class Task implements Runnable {
       context.setInterQuery();
       StoreTableNode store = (StoreTableNode) plan;
       this.partitionType = store.getPartitionType();
-      if (store.getSubNode().getType() == ExprType.SORT) {
+      if (partitionType == PARTITION_TYPE.RANGE) {
         SortNode sortNode = (SortNode) store.getSubNode();
         this.finalSchema = PlannerUtil.sortSpecsToSchema(sortNode.getSortKeys());
         this.sortComp = new TupleComparator(finalSchema, sortNode.getSortKeys());
