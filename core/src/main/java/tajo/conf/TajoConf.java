@@ -128,6 +128,9 @@ public class TajoConf extends Configuration {
 
     // GeoIP
     GEOIP_DATA("tajo.geoip.data", "/usr/local/share/GeoIP/GeoIP.dat"),
+    
+    // Web Address
+    WEB_ADDRESS("tajo.webaddr",""),
     ;
 
     public final String varname;

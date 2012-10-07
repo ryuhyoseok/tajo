@@ -9,6 +9,12 @@
 </property>
 
 <property>
+  <name>tajo.webaddr</name>
+  <value>163.152.163.54</value>
+  <description>A web server address</dexcription>
+</property>
+
+<property>
   <name>engine.data.dir</name>
   <value>${engine.rootdir}/data</value>
   <description>data dir</description>
