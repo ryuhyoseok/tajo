@@ -1,5 +1,7 @@
 package tajo.webapp;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.mortbay.jetty.Connector;
 import tajo.conf.TajoConf;
@@ -11,7 +13,7 @@ import java.io.IOException;
 public class StaticHttpServer extends HttpServer{
   private static StaticHttpServer instance = null;
   private TajoMaster master = null;
-  
+  private static final Log LOG = LogFactory.getLog(StaticHttpServer.class);
   private StaticHttpServer(TajoMaster master , String name, String bindAddress, int port,
       boolean findPort, Connector connector, Configuration conf,
       String[] pathSpecs) throws IOException {
@@ -28,9 +30,9 @@ public class StaticHttpServer extends HttpServer{
     String addr = bindAddress;
     if(instance == null) {
       if(bindAddress == null || bindAddress.compareTo("") == 0) {
-        addr = conf.getVar(ConfVars.MASTER_ADDRESS).split(":")[0];
+        addr = conf.getVar(ConfVars.WEB_ADDRESS);
       }
-      
+      LOG.info("WEB SERVER ADDRESS : " + addr + ":" + port);
       instance = new StaticHttpServer(master, name, addr, port,
           findPort, connector, conf, pathSpecs);
       instance.setAttribute("tajo.master", master);
