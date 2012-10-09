@@ -3,13 +3,13 @@
    
 <%@ page import="java.util.*" %>
 <%@ page import="tajo.webapp.StaticHttpServer" %>
-<%@ page import="nta.catalog.*" %>
-<%@ page import="nta.engine.*" %>
-<%@ page import="nta.engine.cluster.ClusterManager" %>
+<%@ page import="tajo.catalog.*" %>
+<%@ page import="tajo.master.*" %>
+<%@ page import="tajo.engine.cluster.ClusterManager" %>
 <%@ page import="java.net.InetSocketAddress" %>
 <%@ page import="java.net.InetAddress"  %>
 <%@ page import="org.apache.hadoop.conf.Configuration" %>
-<%@ page import="nta.engine.NConstants" %>
+<%@ page import="tajo.NConstants" %>
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
   <head>
@@ -17,7 +17,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <title>tajo main</title>
     <%
-     NtaEngineMaster master = (NtaEngineMaster)application.getAttribute("tajo.master");
+     TajoMaster master = (TajoMaster)application.getAttribute("tajo.master");
      CatalogService catalog = master.getCatalog(); 
      HashMap<String,String> map = (HashMap<String,String>)application.getAttribute("tajo.online.worker");
      List<String> serverList = master.getOnlineServer();

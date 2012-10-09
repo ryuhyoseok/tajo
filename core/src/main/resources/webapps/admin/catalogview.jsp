@@ -2,11 +2,11 @@
     pageEncoding="UTF-8"%>
    
 <%@ page import="java.util.*" %>
-<%@ page import="nta.engine.cluster.ClusterManager" %>
+<%@ page import="tajo.engine.cluster.ClusterManager" %>
 <%@ page import="com.google.gson.Gson" %>
-<%@ page import="nta.engine.json.*" %>
-<%@ page import="nta.catalog.*" %>
-<%@ page import="nta.engine.*" %>
+<%@ page import="tajo.engine.json.*" %>
+<%@ page import="tajo.catalog.*" %>
+<%@ page import="tajo.master.*" %>
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -16,7 +16,7 @@
   <title>Tajo Catalog</title>
   <%
    String masterAddr = (String)application.getAttribute("tajo.master.addr");
-   NtaEngineMaster master = (NtaEngineMaster)application.getAttribute("tajo.master");
+   TajoMaster master = (TajoMaster)application.getAttribute("tajo.master");
    CatalogService catalog = master.getCatalog();
    String tableName = request.getParameter("tablename");
    if(tableName == null) {

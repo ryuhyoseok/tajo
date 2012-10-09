@@ -5,11 +5,11 @@
 <%@ page import="java.net.InetAddress" %>
 <%@ page import = "java.io.*" %>
 <%@ page import="tajo.webapp.StaticHttpServer" %>
-<%@ page import="nta.engine.*" %>
-<%@ page import="nta.engine.cluster.ClusterManager" %>
+<%@ page import="tajo.master.*" %>
+<%@ page import="tajo.engine.cluster.ClusterManager" %>
 <%@ page import="java.net.InetSocketAddress" %>
 <%@ page import="org.apache.hadoop.conf.Configuration" %>
-<%@ page import="nta.engine.NConstants" %>
+<%@ page import="tajo.NConstants" %>
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
   <head>
@@ -21,7 +21,7 @@
   BufferedReader reader;
   %>
   <%
-  NtaEngineMaster master = (NtaEngineMaster)application.getAttribute("tajo.master");
+  TajoMaster master = (TajoMaster)application.getAttribute("tajo.master");
   String masterAddr = (String)application.getAttribute("tajo.master.addr");
   List<String> serverList = master.getOnlineServer();
   masterAddr = masterAddr.split(":")[0];
